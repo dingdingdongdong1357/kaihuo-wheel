@@ -2078,7 +2078,7 @@ new MutationObserver(redrawWheels).observe(document.documentElement,{attributes:
 
 // ---------- 啟動
 const local=loadLocal(); if(local) S=merge(local);
-if(S.settings.fancyV!==2){ S.settings.fancy=.5; S.settings.fancyV=2; }
+if(!(local&&local.settings&&local.settings.fancyV===2)){ S.settings.fancy=.5; S.settings.fancyV=2; save(); }
 if(!S.weekStart){ S.weekStart=iso(new Date()); save(); }
 render();
 setSync(S.lastBackup?`紀錄存在這支手機。上次備份：${S.lastBackup}`:'紀錄存在這支手機，記得偶爾到「設定」備份');
