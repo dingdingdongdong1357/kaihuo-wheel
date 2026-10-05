@@ -662,7 +662,7 @@ const R = [
   reheat:'冷凍的飯微波 2 分鐘，或放電鍋外鍋半杯水。',
   steps:['米用量杯量好，一人一餐大約半杯米。','洗米 2–3 次，水從混濁變得比較清就好，不用洗到全清。','米和水 1:1（新米可以少一點水），放進電鍋內鍋。','外鍋放 1 杯水，按下開關。','跳起來後再燜 10 分鐘，打開用飯匙翻鬆。'],
   tip:'煮好的飯趁熱分裝成一餐一份冷凍，比冷藏好吃很多。'},
- {id:'multigrain_rice',n:'五穀飯',roles:['staple'],boost:1,lv:1,mem:0,sv:1,use:{multigrain:.07},sea:[],cook:'pot',min:90,
+ {id:'multigrain_rice',n:'五穀飯',roles:['staple'],boost:1,lv:1,mem:0,sv:1,use:{multigrain:.07},sea:[],cook:'pot',min:50,soak:1,
   flow:'五穀飯：五穀米先泡 1 小時，水比白飯多一點，用電鍋煮。',
   reheat:'微波 2 分鐘。',
   steps:['五穀米洗一次，泡水 1 小時以上（前一晚泡也可以）。','可以混一半白米，口感比較軟。','米和水 1:1.3，外鍋 1.5 杯水。','跳起來燜 15 分鐘再打開。'],
@@ -1162,7 +1162,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.15';
+const APP_VERSION='2026-10-05.16';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1469,15 +1469,24 @@ function flowFor(si){
   const sum=l=>lanes[l].reduce((a,x)=>a+x.r.min,0);
   for(const x of [...lanes.K]){ const g=tagOf(x.r); if((g.m==='S'||g.m==='T')&&sum('K')>sum('E')+15&&lanes.K.length>1){ lanes.K.splice(lanes.K.indexOf(x),1); lanes.E.push({...x,moved:true}); } }
   const rows=[]; let total=0;
-  for(const l of ['E','K','P','N']){ let t=0; for(const x of lanes[l]){ rows.push({at:t,l,x}); t+= l==='N'?Math.min(x.r.min,10):x.r.min; } total=Math.max(total,t); }
+  for(const l of ['E','K','P','N']){
+    let t=0; const base=lanes[l][0];
+    for(const x of lanes[l]){
+      // 電鍋：蒸的菜放在飯上層一起蒸，不用排隊
+      if(l==='E'&&x!==base&&base&&base.note&&tagOf(x.r).m==='Z'){ rows.push({at:0,l,x:{...x,stack:true}}); total=Math.max(total,x.r.min); continue; }
+      rows.push({at:t,l,x}); t+= l==='N'?Math.min(x.r.min,10):x.r.min;
+    }
+    total=Math.max(total,t);
+  }
   rows.sort((a,b)=>a.at-b.at||'EKPN'.indexOf(a.l)-'EKPN'.indexOf(b.l));
   const seq=[...lanes.E,...lanes.K,...lanes.P,...lanes.N].reduce((a,x)=>a+x.r.min,0);
-  const lines=rows.map(({at,l,x})=>`<li><b>${at} 分</b>　${TOOL[l]}：${x.note?'主食 ':''}「${esc(x.r.n)}」（${x.r.min} 分鐘）${x.moved?'<span class="small muted">（快煮鍋排太滿，改用電鍋）</span>':''}</li>`);
+  const lines=rows.map(({at,l,x})=>`<li><b>${at} 分</b>　${TOOL[l]}：${x.note?'主食 ':''}「${esc(x.r.n)}」（${x.r.min} 分鐘）${x.moved?'<span class="small muted">（快煮鍋排太滿，改用電鍋）</span>':''}${x.stack?'<span class="small muted">（放蒸架，跟飯一起蒸）</span>':''}</li>`);
   lines.push(`<li><b>${total} 分</b>　全部完成，分裝成幾盒，放涼再冰。</li>`);
   later.forEach(t=>lines.push(`<li>${esc(t)}</li>`));
   (S.plan.fancy||[]).filter(f=>f.si===si).forEach(f=>lines.push(`<li>「${esc(RX[f.id].n)}」是其中一餐的主食，想吃那天再現做。</li>`));
   lines.push(`<li>「${esc(RX[s.veg].n)}」之後每天做一份，5 分鐘。</li>`);
   const usesE=lanes.E.length>0;
+  if(st.soak) lines.unshift(`<li><b>前一晚</b>　「${esc(st.n)}」的米先泡水（泡 1 小時以上）。</li>`);
   return `<details class="flow"><summary>開伙時間表（三個鍋一起用，大約 ${total} 分鐘）</summary>
     <p class="small muted" style="margin:6px 0 0">${seq>total?`如果一道一道輪流做要 ${seq} 分鐘，同時開工省下 ${seq-total} 分鐘。`:''}${usesE?' 電鍋是共用的，被占用時改用快煮鍋，時間會往後延。':''}${lanes.E.length>1?' 電鍋可以放蒸架，飯在下層、菜在上層一起蒸。':''}</p>
     <ol class="tl">${lines.join('')}</ol></details>`;
