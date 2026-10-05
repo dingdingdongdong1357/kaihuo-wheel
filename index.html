@@ -848,6 +848,7 @@ const SLOT_ROLE={main1:'main',main2:'main',main3:'main',side:'side',soup:'soup',
 function slotsFor(S){ const n=S.settings.people||1; return ['main1','main2',...(n>=3?['main3']:[]),'side',...(n>=5?['soup']:[]),'veg']; }
 const fitsRole=(r,role)=> role==='main' ? (r.roles.includes('main')||r.roles.includes('special'))
   : role==='soup' ? !!r.soup
+  : role==='side' ? r.roles.includes('side') && !(r.soup && SLOTS.includes('soup'))
   : r.roles.includes(role);
 const PROTEIN = ['pork_slice','pork_belly','pork_chop','pork_block','ribs','chicken_thigh','chicken_drum','chicken_wing','chicken_breast','mince','beef_hotpot','shrimp','shrimp_peeled','fish','fish_fillet','mackerel','squid','salmon','clam'];
 
@@ -953,7 +954,8 @@ function shopping(S, plan){
 }
 function scorePlan(S,plan){
   const sh=shopping(S,plan);
-  if (sh.newSea.length > S.settings.maxNewSea) return {score:-1e9,sh};
+  // 新調味料超過上限：扣很多分，但不直接淘汰（人多、菜多的時候常常一定會超過）
+  const seaOver=Math.max(0,sh.newSea.length-S.settings.maxNewSea);
   let ws=0; for(const id of planIds(plan)) ws+=weight(S,RX[id]);
   const over=sh.total-S.settings.budget;
   const pen=(over>0?over*1.5:Math.max(0,-over-150)*.2) + Math.max(0,sh.cash-S.settings.budget)*.5;
@@ -975,7 +977,7 @@ function scorePlan(S,plan){
   if(special===0) rep+=15; if(special>spMax) rep+=(special-spMax)*10;
   for (const s of plan.sessions) if(mk.filter(k=>RX[s[k]].roles.includes('special')).length>1) rep+=10;
   for (const k of ['pasta','noodle','beef_hotpot','shrimp']) if(mains.filter(id=>RX[id].use[k]).length>1) rep+=8;
-  return {score: ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5, sh};
+  return {score: ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5 - seaOver*80, sh};
 }
 function pick(S,role,exclude,rnd){
   const pool=ACTIVE.filter(r=>fitsRole(r,SLOT_ROLE[role]||role)&&!exclude.has(r.id)).map(r=>[r,weight(S,r)]).filter(x=>x[1]>0);
