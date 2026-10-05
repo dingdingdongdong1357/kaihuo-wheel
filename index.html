@@ -187,6 +187,7 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .sugg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
 .sugg:first-of-type{border-top:0}
 .ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.askmini{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;width:22px;height:22px;font-size:12px;font-weight:700;padding:0;vertical-align:middle}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
 /* settings */
@@ -1489,7 +1490,7 @@ function renderShop(){
       <span class="nm">${name}</span>
       ${x?`<span class="price">實付 $<input type="number" min="0" step="1" id="paid-${key}" data-paid="${key}" value="${Math.round(x.paid)}" aria-label="實付金額"></span>`:`<span class="price muted">約 $${Math.round(est)}</span>`}
       <span class="note">${note}${x&&ING[key]?`<span class="qty">買了 <button class="btn tiny" data-bq="${key}|-1" aria-label="少一包">−</button><b class="num">${x.qty}</b> 包<button class="btn tiny" data-bq="${key}|1" aria-label="多一包">＋</button></span>`:''}
-      ${!x&&canUnavail?`<button class="btn tiny ${un?'no':''}" data-unav="${key}">${un?'買不到（按一下取消）':'買不到'}</button>`:''}</span>
+      ${!x&&canUnavail?`<button class="btn tiny ${un?'no':''}" data-unav="${key}">${un?'買不到（按一下取消）':'買不到'}</button>`:''}${ING[key]?` <button class="btn tiny" data-asking="${key}">這是什麼？</button>`:''}</span>
     </div>`;
   };
   const items=sh.items.filter(i=>i.packs>0);
@@ -1525,7 +1526,7 @@ function renderFridge(){
   const amt=(k,v)=>v>=0.95?`約 ${+v.toFixed(1)} 包`:v>=0.4?'剩半包左右':'剩一點';
   const list=order.filter(c=>g[c]).map(c=>`<div class="group"><h3>${c}</h3>${g[c].map(k=>`<div class="item"><span></span>
     <span class="nm">${esc(ING[k][0])} <span class="muted small">${amt(k,f[k])}（1 包 = ${esc(ING[k][1])}）${PERISH.has(k)?' · 放不久，先吃':''}</span></span>
-    <span class="chips"><button class="btn tiny" data-adj="${k}|-1" aria-label="少一包">−</button><button class="btn tiny" data-adj="${k}|1" aria-label="多一包">＋</button><button class="btn tiny" data-empty="${k}">用完了</button></span></div>`).join('')}</div>`).join('');
+    <span class="chips"><button class="btn tiny" data-adj="${k}|-1" aria-label="少一包">−</button><button class="btn tiny" data-adj="${k}|1" aria-label="多一包">＋</button><button class="btn tiny" data-empty="${k}">用完了</button><button class="btn tiny" data-askfridge="${k}">怎麼煮？</button></span></div>`).join('')}</div>`).join('');
   const ideas=[...suggest('main',{k:3}),...suggest('side',{k:1}),...suggest('fancy',{k:1})].filter(c=>c.has.length).sort((a,b)=>a.miss.length-b.miss.length).slice(0,4);
   const opts=Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('');
   $('#tab-fridge').innerHTML=`
@@ -1865,6 +1866,7 @@ function openHelp(){
     <h2 id="ht">怎麼用開伙轉盤</h2>
     <ol class="steps">
       <li><b>抽這週的菜</b>：「抽菜」頁的第一輪，按「轉一下」。每次開伙會抽出一種主食、兩道主菜、一道配菜或湯、一道青菜；一週偶爾有一餐換成特色主食（粥、麵、炒飯）。不喜歡就按「換一道」，想對調就按「調換位置」，想保留就「鎖定」。</li>
+      <li><b>問 Claude</b>：做法頁每一步旁邊的「?」、「問 Claude 這道菜」，採買清單的「這是什麼？」，冰箱的「怎麼煮？」，都會幫你把問題寫好、複製，打開 Claude App 貼上就能問。用你自己的 Claude 帳號，不用另外付錢。</li>
       <li><b>記帳</b>：採買頁勾「買了」，改成實際付的錢和包數；也可以直接填發票總額。買不到的按「買不到」，主要材料買不到時會幫你想替代的菜。</li>
       <li><b>沒照著煮也沒關係</b>：菜下面按「這次不煮」，材料會留在冰箱，可以按「幫我換」。冰箱頁的「用冰箱的東西重新排」會只換還沒煮的菜。</li>
       <li><b>我另外買的</b>：在冰箱頁記下清單外多買的東西和價格，會算進花費，也會建議可以做的菜。</li>
@@ -1886,6 +1888,43 @@ function openHelp(){
   $('#sclose').onclick=closeSheet;
 }
 
+// ---------- 問 Claude：把問題和背景準備好，複製後打開 Claude App
+const ASK_BG='背景：我是台灣的學生，一個人住宿舍，在學做菜。設備只有電磁爐、平底鍋、快煮鍋，宿舍有共用電鍋和微波爐，沒有烤箱。在全聯買菜。請用繁體中文，簡短、具體地回答（份量、時間、火候、怎麼判斷好了）。';
+function askRecipeText(id,stepIdx){
+  const r=RX[id], ing=useOf(S,r).map(([k,q])=>`${ING[k][0]}（${ING[k][1]} × ${+(q).toFixed(2)}）`).join('、');
+  const sea=r.sea.map(x=>SEA[x][0]).join('、')||'無';
+  const steps=r.steps.map((t,i)=>`${i+1}. ${t}`).join('\n');
+  const head=`${ASK_BG}\n\n我在做「${r.n}」（${r.sv} 人份）。\n材料：${ing}\n調味料：${sea}\n步驟：\n${steps}\n\n`;
+  if(stepIdx!=null) return head+`我卡在第 ${stepIdx+1} 步：「${r.steps[stepIdx]}」\n這一步具體要放多少、煮多久、看到什麼樣子就代表好了？有什麼常見失敗要注意？\n\n我的問題：`;
+  return head+'我的問題：';
+}
+function askIngText(k,users){
+  return `${ASK_BG}\n\n我在全聯要買「${ING[k][0]}」（${ING[k][1]}）${users&&users.length?`，要用來做：${users.join('、')}`:''}。\n請告訴我：\n1. 它長什麼樣子、放在哪一區\n2. 怎麼挑比較新鮮\n3. 容易跟什麼搞混\n4. 買不到的話可以用什麼代替\n\n我的問題：`;
+}
+function askFridgeText(k){
+  return `${ASK_BG}\n\n我冰箱裡有「${ING[k][0]}」，大概剩 ${(+(liveFridge()[k]||0)).toFixed(1)} 包（1 包是 ${ING[k][1]}）。\n請推薦 2–3 個用得到它的簡單做法，盡量只用我已經有的調味料：${S.owned.map(x=>SEA[x][0]).join('、')}。另外它還可以放多久？\n\n我的問題：`;
+}
+function openAsk(title,text){
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="askt">
+    <div class="grab"></div>
+    <h2 id="askt">${esc(title)}</h2>
+    <p class="small muted" style="margin:0">背景和問題都幫你寫好了。在最後的「我的問題：」後面補一句你想問的，再按下面的按鈕。</p>
+    <textarea id="askText" rows="10" aria-label="要問 Claude 的內容" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:14px;line-height:1.5">${esc(text)}</textarea>
+    <p class="small muted" style="margin:0">按下去會複製這段文字並打開 Claude。如果 Claude 的輸入框是空的，長按貼上就好。</p>
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">取消</button><button class="btn primary big" id="btnAskGo">複製並打開 Claude</button></div></div>
+  </div></div>`;
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+  const ta=$('#askText'); ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);
+}
+function askGo(){
+  const text=$('#askText').value;
+  const done=()=>toast('已複製，打開 Claude 後貼上就能問');
+  try{ navigator.clipboard.writeText(text).then(done,()=>{ $('#askText').select(); try{ document.execCommand('copy'); done(); }catch(e){} }); }catch(e){ $('#askText').select(); }
+  const url='https://claude.ai/new?q='+encodeURIComponent(text.length>6000?text.slice(0,6000):text);
+  const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
+}
+
 // ---------- 食譜卡
 function openRecipe(id){
   const r=RX[id]; if(!r) return;
@@ -1903,13 +1942,15 @@ function openRecipe(id){
     <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
     <div><h3>食材（${r.sv} 份）</h3><ul class="ing">${ing}</ul></div>
     <div><h3>調味料</h3><div class="chips" style="margin-top:6px">${sea}</div></div>
-    <div><h3>步驟</h3><ol class="steps" style="margin-top:6px">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol></div>
+    <div><h3>步驟</h3><ol class="steps" style="margin-top:6px">${r.steps.map((s,i)=>`<li>${esc(s)} <button class="askmini" data-askstep="${id}|${i}" aria-label="問 Claude 第 ${i+1} 步">?</button></li>`).join('')}</ol>
+      <p class="small muted" style="margin:6px 0 0">哪一步不懂，按旁邊的「?」問 Claude。</p></div>
     ${r.reheat?`<div class="small"><b>備餐加熱：</b>${esc(r.reheat)}</div>`:''}
     ${r.tip?`<div class="tip"><b>小提醒　</b>${esc(r.tip)}</div>`:''}
     <div><h3>變化版</h3><div class="vars" style="margin-top:6px">
       <div class="${c>=2?'':'lock'}"><span>${c>=2?'🔓':'🔒'}</span><span>${c>=2?esc(v[0]):'煮到第 3 次解鎖'}</span></div>
       <div class="${c>=4?'':'lock'}"><span>${c>=4?'🔓':'🔒'}</span><span>${c>=4?esc(v[1]):'煮到第 5 次解鎖'}</span></div>
     </div></div>
+    <button class="btn" data-askdish="${id}">問 Claude 這道菜</button>
     <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">關閉</button><button class="btn primary big" data-log="${id}">煮好了！登記一次</button></div></div>
   </div></div>`;
   $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
@@ -1998,6 +2039,10 @@ document.addEventListener('click',e=>{
   if(t.dataset.dislike){ const k=t.dataset.dislike; S.dislikes=(S.dislikes||[]).includes(k)?S.dislikes.filter(x=>x!==k):[...(S.dislikes||[]),k]; save(); render(); return; }
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
   if(t.dataset.bq){ const [k,d]=t.dataset.bq.split('|'); const x=S.purchases[k]; if(!x) return; const unit=x.qty?x.paid/x.qty:price(S,k); x.qty=Math.max(1,x.qty+ +d); x.paid=Math.round(unit*x.qty); save(); render(); return; }
+  if(t.dataset.askdish){ const id=t.dataset.askdish; openAsk(`問 Claude：${RX[id].n}`,askRecipeText(id)); return; }
+  if(t.dataset.askstep){ const [id,i]=t.dataset.askstep.split('|'); openAsk(`問 Claude：${RX[id].n} 第 ${+i+1} 步`,askRecipeText(id,+i)); return; }
+  if(t.dataset.asking){ const k=t.dataset.asking; const it=shopping(S,S.plan).items.find(x=>x.id===k); openAsk(`問 Claude：${ING[k][0]}`,askIngText(k,it?it.users:[])); return; }
+  if(t.dataset.askfridge){ const k=t.dataset.askfridge; openAsk(`問 Claude：${ING[k][0]}怎麼煮`,askFridgeText(k)); return; }
   if(t.dataset.unav){ const k=t.dataset.unav; const on=!(S.unavail||[]).includes(k); S.unavail=on?[...(S.unavail||[]),k]:S.unavail.filter(x=>x!==k); save(); render();
     if(on&&!GARNISH.has(k)){ const hit=planSlots().find(x=>!cookedEv(x.id).length&&RX[x.id].use[k]); if(hit) openSuggest({title:`${ING[k][0]}買不到`,intro:`「${RX[hit.id].n}」需要它，做不了。這幾道只用已經買的或冰箱有的東西就能做：`,role:hit.role==='soup'?'soup':hit.role,targetKey:hit.key}); }
     else if(on) toast(`${ING[k][0]}是配料，菜照煮就好`);
@@ -2031,6 +2076,7 @@ document.addEventListener('click',e=>{
     case 'btnNewWeek': openWrapUp(); return;
     case 'btnWrapOk': finishWeek(); return;
     case 'btnHelp': case 'btnHelp2': openHelp(); return;
+    case 'btnAskGo': askGo(); return;
     case 'peopleDn': case 'peopleUp': {
       const p=Math.max(1,Math.min(5,(S.settings.people||1)+(t.id==='peopleUp'?1:-1)));
       if(p===(S.settings.people||1)) return;

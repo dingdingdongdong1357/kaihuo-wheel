@@ -1,6 +1,6 @@
 // 離線用：先拿網路上的新版，沒網路時用存起來的版本。
 // 改了 index.html 以後，把 VERSION 加一，手機下次打開就會換成新版。
-const VERSION = 'kaihuo-v8';
+const VERSION = 'kaihuo-v9';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
