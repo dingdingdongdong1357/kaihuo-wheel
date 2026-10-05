@@ -1169,7 +1169,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.17';
+const APP_VERSION='2026-10-05.18';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1747,6 +1747,7 @@ function renderSet(){
 }
 let resetArmed=false;
 function render(){
+  setTimeout(hydratePhotos,0);
   rebuild(S); ensurePlan();
   document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));
   ['spin','shop','fridge','skill','set'].forEach(t=>$('#tab-'+t).hidden=t!==tab);
