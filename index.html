@@ -188,6 +188,13 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .sugg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
 .sugg:first-of-type{border-top:0}
 .ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.photo-pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.photo-pick img{width:100%;max-height:260px;object-fit:cover;border-radius:12px}
+.note-photo{width:100%;max-height:280px;object-fit:cover;border-radius:12px;margin-top:6px}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.gal{border:0;padding:0;background:var(--bg);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;text-align:left}
+.gal img{width:100%;aspect-ratio:1;object-fit:cover;display:block;max-width:100%}
+.gal span{font-size:11px;line-height:1.35;padding:4px 6px;color:var(--muted)}
 .note-row{padding-block:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
 .note-row:first-of-type{border-top:0}
 .tag.tg{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
@@ -1162,7 +1169,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.16';
+const APP_VERSION='2026-10-05.17';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1641,6 +1648,15 @@ function skillRow(r){
   </div>`;
 }
 let showAllNew=false, adding=false, addNote='';
+function galleryHTML(){
+  const all=[]; for(const [id,list] of Object.entries(S.notes||{})) if(RX[id]) for(const x of list) if(x.photo) all.push({id,...x});
+  all.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:b.n-a.n);
+  if(!all.length) return `<section class="card"><h2>我的作品</h2><p class="small muted" style="margin:6px 0 0">還沒有照片。煮完寫心得時，按「加一張作品照片」，這裡就會出現。</p></section>`;
+  return `<section class="card"><div class="trip-h"><h2>我的作品</h2><span class="small muted">${all.length} 張</span></div>
+    <div class="gallery">${all.slice(0,showAllPhotos?999:9).map(x=>`<button class="gal" data-open="${x.id}" aria-label="${esc(RX[x.id].n)} 第 ${x.n} 次"><img data-photo="${esc(x.photo)}" alt=""><span>${esc(RX[x.id].n)}<br>第 ${x.n} 次・${fmtDate(x.date)}</span></button>`).join('')}</div>
+    ${!showAllPhotos&&all.length>9?`<button class="btn tiny" id="btnMorePhotos" style="margin-top:8px">看全部 ${all.length} 張</button>`:''}</section>`;
+}
+let showAllPhotos=false;
 function renderSkill(){
   const list=ACTIVE;
   const by=[[],[],[],[]]; list.forEach(r=>by[stageOf(cooked(S,r.id))].push(r));
@@ -1672,6 +1688,7 @@ function renderSkill(){
       <div class="chips">${(showAllNew?notYet:notYet.slice(0,14)).map(r=>`<button class="chipbtn" data-open="${r.id}">${esc(r.n)}${inPlan.has(r.id)?' ・這週':''}</button>`).join('')}
       ${!showAllNew&&notYet.length>14?`<button class="chipbtn" id="btnMoreNew">還有 ${notYet.length-14} 道</button>`:''}</div>
     </section>
+    ${galleryHTML()}
     <section class="card"><h2>歷史報告</h2>${historyHTML()}</section>
     <section class="card update ${due?'due':''}">
       <h2>加入新菜</h2>
@@ -1715,7 +1732,7 @@ function renderSet(){
       <div class="chips">${Object.entries(SEA).map(([id,[n]])=>`<button class="btn tiny ${S.owned.includes(id)?'on':''}" data-own="${id}">${n}</button>`).join('')}</div>
     </section>
     <section class="card"><h2>備份</h2>
-      <p class="small muted" style="margin:4px 0 10px">紀錄只存在這支手機的瀏覽器。換手機、清除瀏覽器資料之前，先下載備份檔；之後用「還原」選那個檔案就能救回來。${S.lastBackup?`上次備份：${S.lastBackup}。`:'還沒備份過。'}</p>
+      <p class="small muted" style="margin:4px 0 10px">紀錄和照片只存在這支手機的瀏覽器。換手機、清除瀏覽器資料之前，先下載備份檔（照片也會一起存進去）；之後用「還原」選那個檔案就能救回來。${S.lastBackup?`上次備份：${S.lastBackup}。`:'還沒備份過。'}</p>
       <div class="chips"><button class="btn" id="btnBackup">下載備份檔</button><button class="btn" id="btnRestore">從備份檔還原</button></div>
       <input type="file" id="restoreFile" accept="application/json,.json" hidden>
       <h3 style="margin-top:14px">改版前的自動備份</h3>
@@ -1952,7 +1969,7 @@ function openHelp(){
       <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
       <li><b>菜的標記</b>：每道菜下面有「做法・用什麼鍋・口味」，例如「熱炒・平底鍋・醬燒」。抽菜時會讓同一次開伙的做法和口味不重複，電鍋、快煮鍋、平底鍋分開用，可以同時開工。</li>
       <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
-      <li><b>心得</b>：按「煮好了」後可以寫這次的心得。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
+      <li><b>心得和照片</b>：按「煮好了」後可以寫這次的心得、加一張作品照片。「熟練度」頁的「我的作品」看得到所有照片。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
       <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，只會抽煮好、還有剩的菜。吃完按「吃了這餐」，冰箱和剩下的餐數會跟著更新。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
@@ -2006,6 +2023,28 @@ function askGo(){
   const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
 }
 
+// ---------- 照片：縮小後存在手機的 IndexedDB（空間比 localStorage 大，改版也不會動到）
+const PHOTO_DB='kaihuo-photos';
+function photoDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open(PHOTO_DB,1); q.onupgradeneeded=()=>q.result.createObjectStore('p'); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+async function photoOp(mode,fn){ const db=await photoDB(); return new Promise((res,rej)=>{ const tx=db.transaction('p',mode); const st=tx.objectStore('p'); const r=fn(st); tx.oncomplete=()=>res(r&&r.result); tx.onerror=()=>rej(tx.error); }); }
+const putPhoto=(k,v)=>photoOp('readwrite',st=>st.put(v,k));
+const getPhoto=k=>photoOp('readonly',st=>st.get(k));
+const delPhoto=k=>photoOp('readwrite',st=>st.delete(k));
+async function allPhotos(){ const db=await photoDB(); return new Promise((res,rej)=>{ const out={}; const tx=db.transaction('p','readonly'); const c=tx.objectStore('p').openCursor(); c.onsuccess=()=>{ const cur=c.result; if(cur){ out[cur.key]=cur.value; cur.continue(); } }; tx.oncomplete=()=>res(out); tx.onerror=()=>rej(tx.error); }); }
+// 照片縮到最長邊 1000px 的 JPEG，一張大約 100–200KB
+function shrinkPhoto(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{ const m=1000, sc=Math.min(1,m/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',.75)); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('bad image')); };
+    img.src=url;
+  });
+}
+// 畫面上的 <img data-photo="key"> 由這裡補上圖片
+function hydratePhotos(){ document.querySelectorAll('img[data-photo]:not([src])').forEach(img=>{ getPhoto(img.dataset.photo).then(v=>{ if(v) img.src=v; else img.remove(); }).catch(()=>img.remove()); }); }
+const photoKey=(id,n)=>`${id}#${n}`;
+
 // ---------- 心得：每次煮完寫一點，下次打開那道菜就看得到
 const WD=d=>'日一二三四五六'[new Date(d+'T00:00:00').getDay()];
 const fmtDate=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}（${WD(d)}）`;
@@ -2020,27 +2059,43 @@ function openNote(id,n,after){
     ${prev?`<div class="tip"><b>上次（第 ${prev.n} 次）寫的：</b>${esc(prev.text)}</div>`:''}
     <div class="chips">${NOTE_CHIPS.map(c=>`<button class="chipbtn" data-notechip="${c}">${c}</button>`).join('')}</div>
     <textarea id="noteText" rows="5" placeholder="例如：鹽放 1 小匙剛好；雞肉煎 6 分鐘就熟了；下次蒜可以多一點" aria-label="這次的心得" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${old?esc(old.text):''}</textarea>
+    <div class="photo-pick">
+      <img id="notePreview" alt="這次的作品" ${old&&old.photo?`data-photo="${esc(old.photo)}"`:'hidden'}>
+      <label class="btn" for="noteFile">${old&&old.photo?'換一張照片':'加一張作品照片'}</label>
+      <input type="file" id="noteFile" accept="image/*" hidden>
+      ${old&&old.photo?'<button class="btn tiny" id="notePhotoDel">刪掉照片</button>':''}
+    </div>
     <div class="sticky-cta"><div class="spinrow"><button class="btn" id="noteSkip">${old?'取消':'先不寫'}</button><button class="btn primary big" id="noteSave">存起來</button></div></div>
   </div></div>`;
   const done=()=>{ closeSheet(); after&&after(); };
+  let newPhoto=null, dropPhoto=false;
+  hydratePhotos();
+  $('#noteFile').onchange=async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    try{ newPhoto=await shrinkPhoto(f); dropPhoto=false; const pv=$('#notePreview'); pv.hidden=false; pv.src=newPhoto; }catch(err){ toast('這張照片讀不出來，換一張試試'); } };
+  if($('#notePhotoDel')) $('#notePhotoDel').onclick=()=>{ dropPhoto=true; newPhoto=null; $('#notePreview').hidden=true; toast('按「存起來」後照片就會刪掉'); };
   $('#noteSkip').onclick=done;
-  $('#noteSave').onclick=()=>{
-    const text=$('#noteText').value.trim();
+  $('#noteSave').onclick=async ()=>{
+    const text=$('#noteText').value.trim(), key=photoKey(id,n);
+    let photo=old&&old.photo&&!dropPhoto?old.photo:null;
+    try{
+      if(newPhoto){ await putPhoto(key,newPhoto); photo=key; }
+      else if(dropPhoto&&old&&old.photo){ await delPhoto(old.photo); }
+    }catch(err){ toast('照片存不進去，可能是手機空間不夠'); }
     const list=((S.notes||{})[id]||[]).filter(x=>x.n!==n);
-    if(text) list.push({n,date:old?old.date:iso(new Date()),text});
-    S.notes={...(S.notes||{}),[id]:list}; save(); render(); toast(text?'心得存好了':'沒有內容，沒存'); done();
+    if(text||photo) list.push({n,date:old?old.date:iso(new Date()),text,...(photo?{photo}:{})});
+    S.notes={...(S.notes||{}),[id]:list}; save(); render(); toast(text||photo?'存好了':'沒有內容，沒存'); done();
   };
 }
 function notesHTML(id){
   const list=notesOf(id), c=cooked(S,id);
   return `<div><h3>我的心得</h3>${list.length?list.map(x=>`<div class="note-row">
       <div class="small"><b>第 ${x.n} 次</b> · ${fmtDate(x.date)} <button class="btn tiny" data-noteedit="${id}|${x.n}">修改</button></div>
-      <div>${esc(x.text)}</div></div>`).join(''):'<p class="small muted" style="margin:4px 0 0">還沒有心得。每次煮完按「煮好了」就可以寫。</p>'}
+      ${x.text?`<div>${esc(x.text)}</div>`:''}${x.photo?`<img class="note-photo" data-photo="${esc(x.photo)}" alt="第 ${x.n} 次的作品">`:''}</div>`).join(''):'<p class="small muted" style="margin:4px 0 0">還沒有心得。每次煮完按「煮好了」就可以寫。</p>'}
     ${c&&!list.some(x=>x.n===c)?`<button class="btn tiny" data-noteedit="${id}|${c}" style="margin-top:6px">補寫第 ${c} 次的心得</button>`:''}</div>`;
 }
 
 // ---------- 食譜卡
-function openRecipe(id){
+function openRecipe(id){ setTimeout(hydratePhotos,0);
   const r=RX[id]; if(!r) return;
   const c=cooked(S,id), ch=challengeFor(r,c+1), v=varsOf(r);
   const ing=useOf(S,r).map(([k,q])=>`<li>${esc(ING[k][0])}</li>`).join('');
@@ -2125,8 +2180,9 @@ function addNewDishes(){
 }
 
 // ---------- 備份與還原
-function exportBackup(){
-  const data=JSON.stringify({app:'kaihuo-wheel',savedAt:new Date().toISOString(),state:S});
+async function exportBackup(){
+  let photos={}; try{ photos=await allPhotos(); }catch(e){}
+  const data=JSON.stringify({app:'kaihuo-wheel',savedAt:new Date().toISOString(),state:S,photos});
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='開伙轉盤備份-'+iso(new Date())+'.json';
   document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
@@ -2134,7 +2190,9 @@ function exportBackup(){
 }
 function importBackup(file){
   const fr=new FileReader();
-  fr.onload=()=>{ try{ const d=JSON.parse(fr.result); if(d.app!=='kaihuo-wheel'||!d.state) throw 0; S=merge(d.state); save(); render(); toast('已還原備份'); }catch(e){ toast('這個檔案不是開伙轉盤的備份'); } };
+  fr.onload=async ()=>{ try{ const d=JSON.parse(fr.result); if(d.app!=='kaihuo-wheel'||!d.state) throw 0; S=merge(d.state);
+    for(const [k,v] of Object.entries(d.photos||{})){ try{ await putPhoto(k,v); }catch(e){} }
+    save(); render(); toast('已還原備份'+(d.photos&&Object.keys(d.photos).length?`（含 ${Object.keys(d.photos).length} 張照片）`:'')); }catch(e){ toast('這個檔案不是開伙轉盤的備份'); } };
   fr.readAsText(file);
 }
 
@@ -2200,6 +2258,7 @@ document.addEventListener('click',e=>{
     case 'btnWrapOk': finishWeek(); return;
     case 'btnHelp': case 'btnHelp2': openHelp(); return;
     case 'btnAskGo': askGo(); return;
+    case 'btnMorePhotos': showAllPhotos=true; render(); return;
     case 'peopleDn': case 'peopleUp': {
       const p=Math.max(1,Math.min(5,(S.settings.people||1)+(t.id==='peopleUp'?1:-1)));
       if(p===(S.settings.people||1)) return;
