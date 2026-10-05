@@ -1162,7 +1162,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.14';
+const APP_VERSION='2026-10-05.15';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1454,7 +1454,7 @@ function fancyHTML(i){
 function staple(r){ return r.use.pasta?'義大利麵':r.use.noodle?'麵':r.id==='kimchi_rice'?'炒飯':'飯'; }
 function flowFor(si){
   const s=S.plan.sessions[si], st=RX[s.staple];
-  const items=batchOf(S.plan,si).filter(r=>r.cook!=='fresh'||!isFresh(r));
+  const items=batchOf(S.plan,si);
   const lanes={E:[],K:[],P:[],N:[]};
   const later=[];
   // 主食先放
