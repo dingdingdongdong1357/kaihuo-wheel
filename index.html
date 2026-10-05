@@ -187,6 +187,8 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .sugg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
 .sugg:first-of-type{border-top:0}
 .ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.note-row{padding-block:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.note-row:first-of-type{border-top:0}
 .askmini{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;width:22px;height:22px;font-size:12px;font-weight:700;padding:0;vertical-align:middle}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
@@ -958,6 +960,7 @@ function defaultState(){
     eaten:{},       // 煮好的菜吃掉幾餐
     skipped:[],     // 這次不煮的菜
     adjust:{},      // 手動調整冰箱數量
+    notes:{},       // 每道菜的心得：{id:[{n:第幾次, date, text}]}
     history:[],   // 每週結算報告
     weekLog:[],   // 這週按過「煮好了」的菜
     seaWeek:[],   // 這週買的調味料
@@ -1561,6 +1564,7 @@ function skillRow(r){
       <button class="dname" data-open="${r.id}">${esc(r.n)}</button>
       <span class="meta">${badge(c)}${pips(c)}<span class="num">${c}</span> 次 · ${next}</span>
       <span class="next">下次挑戰：${esc(ch.t)}</span>
+      ${notesOf(r.id)[0]?`<span class="next">上次心得（第 ${notesOf(r.id)[0].n} 次・${fmtDate(notesOf(r.id)[0].date)}）：${esc(notesOf(r.id)[0].text.slice(0,40))}${notesOf(r.id)[0].text.length>40?'…':''}</span>`:''}
     </div>
     <div class="plus">${c?`<button class="sub" data-undo="${r.id}" aria-label="少記一次">−</button>`:''}<button class="add" data-log="${r.id}" aria-label="登記煮了一次">+</button></div>
   </div>`;
@@ -1872,6 +1876,7 @@ function openHelp(){
       <li><b>我另外買的</b>：在冰箱頁記下清單外多買的東西和價格，會算進花費，也會建議可以做的菜。</li>
       <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
       <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
+      <li><b>心得</b>：按「煮好了」後可以寫這次的心得。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
       <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，只會抽煮好、還有剩的菜。吃完按「吃了這餐」，冰箱和剩下的餐數會跟著更新。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
@@ -1925,6 +1930,39 @@ function askGo(){
   const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
 }
 
+// ---------- 心得：每次煮完寫一點，下次打開那道菜就看得到
+const WD=d=>'日一二三四五六'[new Date(d+'T00:00:00').getDay()];
+const fmtDate=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}（${WD(d)}）`;
+const notesOf=id=>((S.notes||{})[id]||[]).slice().sort((a,b)=>b.n-a.n||(b.date>a.date?1:-1));
+const NOTE_CHIPS=['很成功','太鹹','太淡','煮太久','火太大','份量太多','份量太少','下次加多一點醬汁','比上次快'];
+function openNote(id,n,after){
+  const r=RX[id], old=((S.notes||{})[id]||[]).find(x=>x.n===n), prev=notesOf(id).find(x=>x.n<n);
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nt">
+    <div class="grab"></div>
+    <h2 id="nt">第 ${n} 次做「${esc(r.n)}」的心得</h2>
+    <p class="small muted" style="margin:0">${fmtDate(old?old.date:iso(new Date()))} · 寫下這次哪裡好、哪裡要改，下次打開這道菜就看得到。</p>
+    ${prev?`<div class="tip"><b>上次（第 ${prev.n} 次）寫的：</b>${esc(prev.text)}</div>`:''}
+    <div class="chips">${NOTE_CHIPS.map(c=>`<button class="chipbtn" data-notechip="${c}">${c}</button>`).join('')}</div>
+    <textarea id="noteText" rows="5" placeholder="例如：鹽放 1 小匙剛好；雞肉煎 6 分鐘就熟了；下次蒜可以多一點" aria-label="這次的心得" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${old?esc(old.text):''}</textarea>
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="noteSkip">${old?'取消':'先不寫'}</button><button class="btn primary big" id="noteSave">存起來</button></div></div>
+  </div></div>`;
+  const done=()=>{ closeSheet(); after&&after(); };
+  $('#noteSkip').onclick=done;
+  $('#noteSave').onclick=()=>{
+    const text=$('#noteText').value.trim();
+    const list=((S.notes||{})[id]||[]).filter(x=>x.n!==n);
+    if(text) list.push({n,date:old?old.date:iso(new Date()),text});
+    S.notes={...(S.notes||{}),[id]:list}; save(); render(); toast(text?'心得存好了':'沒有內容，沒存'); done();
+  };
+}
+function notesHTML(id){
+  const list=notesOf(id), c=cooked(S,id);
+  return `<div><h3>我的心得</h3>${list.length?list.map(x=>`<div class="note-row">
+      <div class="small"><b>第 ${x.n} 次</b> · ${fmtDate(x.date)} <button class="btn tiny" data-noteedit="${id}|${x.n}">修改</button></div>
+      <div>${esc(x.text)}</div></div>`).join(''):'<p class="small muted" style="margin:4px 0 0">還沒有心得。每次煮完按「煮好了」就可以寫。</p>'}
+    ${c&&!list.some(x=>x.n===c)?`<button class="btn tiny" data-noteedit="${id}|${c}" style="margin-top:6px">補寫第 ${c} 次的心得</button>`:''}</div>`;
+}
+
 // ---------- 食譜卡
 function openRecipe(id){
   const r=RX[id]; if(!r) return;
@@ -1939,6 +1977,7 @@ function openRecipe(id){
       <div class="meta" style="margin-top:4px">${badge(c)}${pips(c,true)}<span>煮過 <span class="num">${c}</span> 次</span></div>
       <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${tool}</div></div>
     ${removed.length?`<div class="tip"><b>這次少了：</b>${removed.map(k=>esc(ING[k][0])).join('、')}（不吃或買不到）。步驟裡看到它就跳過，照樣煮。</div>`:''}
+    ${notesOf(id)[0]?`<div class="tip"><b>上次（第 ${notesOf(id)[0].n} 次，${fmtDate(notesOf(id)[0].date)}）的心得：</b>${esc(notesOf(id)[0].text)}</div>`:''}
     <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
     <div><h3>食材（${r.sv} 份）</h3><ul class="ing">${ing}</ul></div>
     <div><h3>調味料</h3><div class="chips" style="margin-top:6px">${sea}</div></div>
@@ -1950,6 +1989,7 @@ function openRecipe(id){
       <div class="${c>=2?'':'lock'}"><span>${c>=2?'🔓':'🔒'}</span><span>${c>=2?esc(v[0]):'煮到第 3 次解鎖'}</span></div>
       <div class="${c>=4?'':'lock'}"><span>${c>=4?'🔓':'🔒'}</span><span>${c>=4?esc(v[1]):'煮到第 5 次解鎖'}</span></div>
     </div></div>
+    ${notesHTML(id)}
     <button class="btn" data-askdish="${id}">問 Claude 這道菜</button>
     <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">關閉</button><button class="btn primary big" data-log="${id}">煮好了！登記一次</button></div></div>
   </div></div>`;
@@ -1966,8 +2006,8 @@ function logCook(id){
   S.skipped=(S.skipped||[]).filter(x=>x!==id);
   save(); closeSheet(); render();
   const s0=stageOf(before), s1=stageOf(after);
-  if(s1!==s0) celebrate(r,s0,s1,after);
-  else { const nx=nextStageAt(after); toast(`「${r.n}」第 ${after} 次${nx?`，再 ${nx-after} 次升級`:''}`); }
+  const then=()=>{ if(s1!==s0) celebrate(r,s0,s1,after); else { const nx=nextStageAt(after); toast(`「${r.n}」第 ${after} 次${nx?`，再 ${nx-after} 次升級`:''}`); } };
+  openNote(id,after,then);
 }
 function celebrate(r,s0,s1,c){
   const v=varsOf(r);
@@ -2039,6 +2079,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.dislike){ const k=t.dataset.dislike; S.dislikes=(S.dislikes||[]).includes(k)?S.dislikes.filter(x=>x!==k):[...(S.dislikes||[]),k]; save(); render(); return; }
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
   if(t.dataset.bq){ const [k,d]=t.dataset.bq.split('|'); const x=S.purchases[k]; if(!x) return; const unit=x.qty?x.paid/x.qty:price(S,k); x.qty=Math.max(1,x.qty+ +d); x.paid=Math.round(unit*x.qty); save(); render(); return; }
+  if(t.dataset.notechip){ const ta=$('#noteText'); if(ta){ ta.value=(ta.value?ta.value.replace(/\s*$/,'')+'，':'')+t.dataset.notechip; ta.focus(); } return; }
+  if(t.dataset.noteedit){ const [id,n]=t.dataset.noteedit.split('|'); openNote(id,+n,()=>openRecipe(id)); return; }
   if(t.dataset.askdish){ const id=t.dataset.askdish; openAsk(`問 Claude：${RX[id].n}`,askRecipeText(id)); return; }
   if(t.dataset.askstep){ const [id,i]=t.dataset.askstep.split('|'); openAsk(`問 Claude：${RX[id].n} 第 ${+i+1} 步`,askRecipeText(id,+i)); return; }
   if(t.dataset.asking){ const k=t.dataset.asking; const it=shopping(S,S.plan).items.find(x=>x.id===k); openAsk(`問 Claude：${ING[k][0]}`,askIngText(k,it?it.users:[])); return; }
