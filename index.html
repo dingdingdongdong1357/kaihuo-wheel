@@ -188,6 +188,8 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .sugg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
 .sugg:first-of-type{border-top:0}
 .ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.ai-tip{background:var(--sky-soft);border-radius:12px;padding:10px 12px;margin-top:6px;font-size:14px}
+.ai-tip b{color:var(--sky)}
 .photo-pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .photo-pick img{width:100%;max-height:260px;object-fit:cover;border-radius:12px}
 .note-photo{width:100%;max-height:280px;object-fit:cover;border-radius:12px;margin-top:6px}
@@ -1169,7 +1171,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.18';
+const APP_VERSION='2026-10-05.19';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1970,7 +1972,7 @@ function openHelp(){
       <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
       <li><b>菜的標記</b>：每道菜下面有「做法・用什麼鍋・口味」，例如「熱炒・平底鍋・醬燒」。抽菜時會讓同一次開伙的做法和口味不重複，電鍋、快煮鍋、平底鍋分開用，可以同時開工。</li>
       <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
-      <li><b>心得和照片</b>：按「煮好了」後可以寫這次的心得、加一張作品照片。「熟練度」頁的「我的作品」看得到所有照片。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
+      <li><b>心得和照片</b>：按「煮好了」後可以寫這次的心得、加一張作品照片。有照片時可以按「請 Claude 看照片」，選 Claude 分享過去，拿到擺盤、顏色、熟度的建議後，按「貼上 Claude 的建議」存進日記。「熟練度」頁的「我的作品」看得到所有照片。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
       <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，只會抽煮好、還有剩的菜。吃完按「吃了這餐」，冰箱和剩下的餐數會跟著更新。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
@@ -2043,7 +2045,49 @@ function shrinkPhoto(file){
   });
 }
 // 畫面上的 <img data-photo="key"> 由這裡補上圖片
-function hydratePhotos(){ document.querySelectorAll('img[data-photo]:not([src])').forEach(img=>{ getPhoto(img.dataset.photo).then(v=>{ if(v) img.src=v; else img.remove(); }).catch(()=>img.remove()); }); }
+const photoCache={};
+function hydratePhotos(){
+  document.querySelectorAll('img[data-photo]:not([src])').forEach(img=>{ getPhoto(img.dataset.photo).then(v=>{ if(v){ img.src=v; photoCache[img.dataset.photo]=v; } else img.remove(); }).catch(()=>img.remove()); });
+  document.querySelectorAll('[data-askphoto]').forEach(b=>{ const k=b.dataset.askphoto.split('|')[2]; if(!photoCache[k]) getPhoto(k).then(v=>{ if(v) photoCache[k]=v; }).catch(()=>{}); });
+}
+function dataUrlToFile(d,name){ const [h,b]=d.split(','); const bin=atob(b), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new File([u],name,{type:(h.match(/:(.*?);/)||[])[1]||'image/jpeg'}); }
+function photoAskText(id,n){
+  const r=RX[id], x=((S.notes||{})[id]||[]).find(y=>y.n===n);
+  return `${ASK_BG}\n\n附上的照片是我第 ${n} 次做「${r.n}」的成品。${x&&x.text?`我自己的心得：${x.text}\n`:''}\n請看照片，從擺盤、顏色、熟度、份量這幾點，給我 3 個具體的建議，讓我下次做得更好、更好看。最後給我一句鼓勵。用繁體中文，簡短條列。`;
+}
+// 把照片和問題分享給 Claude App；不支援分享的瀏覽器就下載照片、複製問題、打開 Claude
+function askPhoto(id,n,key){
+  const d=photoCache[key]; const text=photoAskText(id,n);
+  try{ navigator.clipboard.writeText(text).catch(()=>{}); }catch(e){}
+  if(!d){ toast('照片還在載入，再按一次'); getPhoto(key).then(v=>{ if(v) photoCache[key]=v; }); return; }
+  const file=dataUrlToFile(d,`${RX[id].n}-第${n}次.jpg`);
+  const after=()=>setTimeout(()=>openAiPaste(id,n),400);
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],text}).then(after,err=>{ if(err&&err.name!=='AbortError') toast('分享失敗，可以改用下載照片'); });
+    return;
+  }
+  const a=document.createElement('a'); a.href=d; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
+  const b=document.createElement('a'); b.href='https://claude.ai/new'; b.target='_blank'; b.rel='noopener'; document.body.appendChild(b); b.click(); b.remove();
+  toast('照片已下載、問題已複製：在 Claude 加上照片、貼上問題');
+  after();
+}
+function openAiPaste(id,n){
+  const x=((S.notes||{})[id]||[]).find(y=>y.n===n);
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ait">
+    <div class="grab"></div>
+    <h2 id="ait">Claude 的建議</h2>
+    <p class="small muted" style="margin:0">Claude 回答後，長按它的回答複製，貼到下面存起來，會變成第 ${n} 次「${esc(RX[id].n)}」日記的一部分。</p>
+    <textarea id="aiText" rows="8" placeholder="把 Claude 的建議貼在這裡" aria-label="Claude 的建議" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${x&&x.ai?esc(x.ai):''}</textarea>
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">之後再貼</button><button class="btn primary big" id="aiSave">存起來</button></div></div>
+  </div></div>`;
+  $('#sclose').onclick=closeSheet;
+  $('#aiSave').onclick=()=>{
+    const v=$('#aiText').value.trim(); const list=((S.notes||{})[id]||[]).slice(); const i=list.findIndex(y=>y.n===n);
+    if(i<0){ toast('找不到這次的心得'); return; }
+    list[i]={...list[i],ai:v||undefined,aiDate:v?iso(new Date()):undefined}; S.notes={...S.notes,[id]:list}; save(); closeSheet(); render(); toast(v?'建議存進日記了':'已清除建議');
+    openRecipe(id);
+  };
+}
 const photoKey=(id,n)=>`${id}#${n}`;
 
 // ---------- 心得：每次煮完寫一點，下次打開那道菜就看得到
@@ -2084,14 +2128,23 @@ function openNote(id,n,after){
     }catch(err){ toast('照片存不進去，可能是手機空間不夠'); }
     const list=((S.notes||{})[id]||[]).filter(x=>x.n!==n);
     if(text||photo) list.push({n,date:old?old.date:iso(new Date()),text,...(photo?{photo}:{})});
-    S.notes={...(S.notes||{}),[id]:list}; save(); render(); toast(text||photo?'存好了':'沒有內容，沒存'); done();
+    S.notes={...(S.notes||{}),[id]:list}; save(); render(); toast(text||photo?'存好了':'沒有內容，沒存');
+    if(newPhoto){ photoCache[key]=newPhoto; closeSheet();
+      $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>
+        <h2>要請 Claude 看看這次的作品嗎？</h2><img class="note-photo" src="${newPhoto}" alt="這次的作品">
+        <p class="small muted" style="margin:0">會打開分享畫面，選 Claude，照片和問題會一起傳過去。Claude 會從擺盤、顏色、熟度、份量給你建議。</p>
+        <div class="sticky-cta"><div class="spinrow"><button class="btn" id="aiLater">先不用</button><button class="btn primary big" data-askphoto="${id}|${n}|${key}">請 Claude 看照片</button></div></div></div></div>`;
+      $('#aiLater').onclick=done; return; }
+    done();
   };
 }
 function notesHTML(id){
   const list=notesOf(id), c=cooked(S,id);
   return `<div><h3>我的心得</h3>${list.length?list.map(x=>`<div class="note-row">
       <div class="small"><b>第 ${x.n} 次</b> · ${fmtDate(x.date)} <button class="btn tiny" data-noteedit="${id}|${x.n}">修改</button></div>
-      ${x.text?`<div>${esc(x.text)}</div>`:''}${x.photo?`<img class="note-photo" data-photo="${esc(x.photo)}" alt="第 ${x.n} 次的作品">`:''}</div>`).join(''):'<p class="small muted" style="margin:4px 0 0">還沒有心得。每次煮完按「煮好了」就可以寫。</p>'}
+      ${x.text?`<div>${esc(x.text)}</div>`:''}${x.photo?`<img class="note-photo" data-photo="${esc(x.photo)}" alt="第 ${x.n} 次的作品">`:''}
+      ${x.ai?`<div class="ai-tip"><b>Claude 的建議</b>（${fmtDate(x.aiDate||x.date)}）<div>${esc(x.ai).replace(/\n/g,'<br>')}</div></div>`:''}
+      ${x.photo?`<div class="chips" style="margin-top:4px"><button class="btn tiny" data-askphoto="${id}|${x.n}|${esc(x.photo)}">請 Claude 看照片</button><button class="btn tiny" data-aipaste="${id}|${x.n}">${x.ai?'修改建議':'貼上 Claude 的建議'}</button></div>`:''}</div>`).join(''):'<p class="small muted" style="margin:4px 0 0">還沒有心得。每次煮完按「煮好了」就可以寫。</p>'}
     ${c&&!list.some(x=>x.n===c)?`<button class="btn tiny" data-noteedit="${id}|${c}" style="margin-top:6px">補寫第 ${c} 次的心得</button>`:''}</div>`;
 }
 
@@ -2215,6 +2268,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
   if(t.dataset.bq){ const [k,d]=t.dataset.bq.split('|'); const x=S.purchases[k]; if(!x) return; const unit=x.qty?x.paid/x.qty:price(S,k); x.qty=Math.max(1,x.qty+ +d); x.paid=Math.round(unit*x.qty); save(); render(); return; }
   if(t.dataset.notechip){ const ta=$('#noteText'); if(ta){ ta.value=(ta.value?ta.value.replace(/\s*$/,'')+'，':'')+t.dataset.notechip; ta.focus(); } return; }
+  if(t.dataset.askphoto){ const [id,n,key]=t.dataset.askphoto.split('|'); askPhoto(id,+n,key); return; }
+  if(t.dataset.aipaste){ const [id,n]=t.dataset.aipaste.split('|'); openAiPaste(id,+n); return; }
   if(t.dataset.noteedit){ const [id,n]=t.dataset.noteedit.split('|'); openNote(id,+n,()=>openRecipe(id)); return; }
   if(t.dataset.askdish){ const id=t.dataset.askdish; openAsk(`問 Claude：${RX[id].n}`,askRecipeText(id)); return; }
   if(t.dataset.askstep){ const [id,i]=t.dataset.askstep.split('|'); openAsk(`問 Claude：${RX[id].n} 第 ${+i+1} 步`,askRecipeText(id,+i)); return; }
