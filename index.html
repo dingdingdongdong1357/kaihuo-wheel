@@ -165,6 +165,17 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .price input{width:58px;text-align:right;border:1px solid transparent;background:transparent;border-radius:6px;padding:1px 4px;font:inherit;color:var(--ink)}
 .price input:focus,.price input:hover{border-color:var(--line);background:var(--bg)}
 .qty{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--ink);font-size:13px}
+.report{display:flex;flex-direction:column;gap:12px;background:var(--bg);border-radius:16px;padding:14px}
+.report.month{background:var(--yolk-soft)}
+.report h3{font-size:13px;color:var(--muted);margin-bottom:4px}
+.stat3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;text-align:center}
+.stat3 div{background:var(--surface);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column}
+.stat3 b{font-size:19px}
+.stat3 span{font-size:12px;color:var(--muted)}
+.uprow{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-block:4px;font-size:14px}
+.bars{display:flex;gap:10px;align-items:flex-end;min-height:120px;padding-top:6px}
+.barcol{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}
+.barcol i{display:block;width:100%;max-width:40px;border-radius:6px 6px 0 0}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
 /* settings */
@@ -885,6 +896,8 @@ function defaultState(){
     unlocked:[], custom:[], customIng:{}, lastUpdate:null,
     pantry:{},
     bought:{},    // 這週實際買了幾包（促銷多買時可以改）
+    weekStart:null, // 這週從哪天開始
+    history:[],   // 每週結算報告
     weekLog:[],   // 這週按過「煮好了」的菜
     seaWeek:[],   // 這週買的調味料
     today:null,
@@ -1374,6 +1387,7 @@ function renderSkill(){
       <div class="chips">${(showAllNew?notYet:notYet.slice(0,14)).map(r=>`<button class="chipbtn" data-open="${r.id}">${esc(r.n)}${inPlan.has(r.id)?' ・這週':''}</button>`).join('')}
       ${!showAllNew&&notYet.length>14?`<button class="chipbtn" id="btnMoreNew">還有 ${notYet.length-14} 道</button>`:''}</div>
     </section>
+    <section class="card"><h2>歷史報告</h2>${historyHTML()}</section>
     <section class="card update ${due?'due':''}">
       <h2>加入新菜</h2>
       <p class="small" style="margin:6px 0">建議每兩週按一次，每次從備用菜單加 3 道新菜到轉盤裡。舊的菜都會留著。${S.lastUpdate?`上次是 ${S.lastUpdate}（${days} 天前）。`:''}</p>
@@ -1457,23 +1471,116 @@ function openWrapUp(){
   $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt">
     <div class="grab"></div>
     <h2 id="wt">這週結算</h2>
-    <p class="small muted" style="margin:0">勾起來的是這週有煮的菜。已經按過「煮好了」的會先勾好；忘了登記的在這裡補勾，也會算進熟練度。沒煮的菜，食材會留在冰箱紀錄裡。</p>
+    <p class="small muted" style="margin:0">確定後會跳出這週的結算報告（花了多少錢、煮了什麼、哪些菜進步、冰箱剩什麼）。勾起來的是這週有煮的菜。已經按過「煮好了」的會先勾好；忘了登記的在這裡補勾，也會算進熟練度。沒煮的菜，食材會留在冰箱紀錄裡。</p>
     <div>${ids.map(id=>`<label class="item"><input type="checkbox" id="wk-${id}" data-wk="${id}" ${S.weekLog.includes(id)?'checked':''}><span class="nm">${esc(RX[id].n)}</span><span></span></label>`).join('')}</div>
     <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">取消</button><button class="btn primary big" id="btnWrapOk">確定，開始下一週</button></div></div>
   </div></div>`;
   $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
   $('#sclose').onclick=closeSheet;
 }
+// ---------- 結算報告
+// 實際花費：有勾「買了」就照勾的和實際包數算；完全沒勾就用估計值
+function actualSpend(){
+  const sh=shopping(S,S.plan);
+  const any=sh.items.some(i=>S.checked[i.id]);
+  if(!any) return {total:sh.cash, estimated:true};
+  let t=0;
+  for(const it of sh.items) if(S.checked[it.id]) t+=(S.bought?.[it.id]??it.packs)*price(S,it.id);
+  t+=sh.fixed.reduce((a,f)=>a+f.cost,0);
+  t+=sh.newSea.filter(x=>S.checked['sea_'+x.id]).reduce((a,x)=>a+x.cost,0);
+  return {total:Math.round(t), estimated:false};
+}
 function finishWeek(){
   const ticked=new Set([...document.querySelectorAll('[data-wk]')].filter(x=>x.checked).map(x=>x.dataset.wk));
-  let ups=0;
-  for(const id of ticked) if(!S.weekLog.includes(id)){ const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())}; if(stageOf(b+1)!==stageOf(b)) ups++; }
+  const spend=actualSpend();
+  // 這週每道菜煮了幾次：按過「煮好了」的照次數，結算時補勾的算 1 次
+  const times={};
+  for(const id of S.weekLog) times[id]=(times[id]||0)+1;
+  for(const id of ticked) if(!times[id]) times[id]=1;
+  for(const id of ticked) if(!S.weekLog.includes(id)){ const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())}; }
+  const ups=[];
+  for(const [id,n] of Object.entries(times)){
+    if(!RX[id]) continue;
+    const after=cooked(S,id), before=Math.max(0,after-n);
+    if(stageOf(after)!==stageOf(before)) ups.push({id,n:RX[id].n,from:stageOf(before),to:stageOf(after)});
+  }
   S.pantry=weekLeftover(S.plan,ticked);
+  const end=iso(new Date());
+  const rec={start:S.weekStart||end, end, spent:spend.total, estimated:spend.estimated, budget:S.settings.budget, people:S.settings.people||1,
+    cooked:Object.entries(times).filter(([id])=>RX[id]).map(([id,n])=>({id,n:RX[id].n,times:n})),
+    ups, pantry:Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>({n:ING[k][0],v}))};
+  const prevMonth = S.history.length ? S.history[S.history.length-1].end.slice(0,7) : null;
+  S.history=[...(S.history||[]),rec].slice(-104);
   S.lastWeek=planIds(S.plan); S.weekLog=[]; S.seaWeek=[]; S.bought={};
-  S.plan=null; S.plan=generate(S,null); S.checked={}; S.today=null;
+  S.plan=null; S.plan=generate(S,null); S.checked={}; S.today=null; S.weekStart=end;
   save(); closeSheet(); tab='spin'; mode='week'; render(); window.scrollTo(0,0);
-  toast(`新的一週！${ups?`有 ${ups} 道菜升級了。`:''}冰箱還有 ${Object.keys(S.pantry).length} 樣食材會優先用掉`);
+  // 這個月第一次結算：也給上個月的總結
+  const newMonth = prevMonth && prevMonth!==end.slice(0,7);
+  openReport(weekReportHTML(rec) + (newMonth?monthReportHTML(prevMonth):''), true);
 }
+const ym=d=>`${+d.slice(0,4)} 年 ${+d.slice(5,7)} 月`;
+const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
+function weekReportHTML(rec){
+  const over=rec.spent-rec.budget, totalTimes=rec.cooked.reduce((a,c)=>a+c.times,0);
+  return `<section class="report">
+    <div class="small muted">${md(rec.start)} – ${md(rec.end)} 這週結算</div>
+    <div class="stat3">
+      <div><b class="num">${money(rec.spent)}</b><span>${rec.estimated?'花費（估計）':'這週花了'}</span></div>
+      <div><b class="num">${totalTimes}</b><span>次下廚</span></div>
+      <div><b class="num">${rec.ups.length}</b><span>道菜升級</span></div>
+    </div>
+    <p class="small" style="margin:0">${over>0?`比預算 ${money(rec.budget)} 多了 <b style="color:var(--tomato)">${money(over)}</b>。`:`比預算 ${money(rec.budget)} 省了 <b style="color:var(--leaf)">${money(-over)}</b>。`}${rec.estimated?'這週沒有在購物清單打勾，所以用 App 估的價格算。':''}</p>
+    ${rec.ups.length?`<div><h3>進步了</h3>${rec.ups.map(u=>`<div class="uprow"><span>${esc(u.n)}</span><span><span class="badge st${u.from}">${STAGES[u.from].n}</span> → <span class="badge st${u.to}">${STAGES[u.to].n}</span></span></div>`).join('')}</div>`:''}
+    <div><h3>這週煮了</h3>${rec.cooked.length?`<div class="chips">${rec.cooked.map(c=>`<span class="chipbtn">${esc(c.n)}${c.times>1?` ×${c.times}`:''}</span>`).join('')}</div>`:'<p class="small muted" style="margin:4px 0 0">這週沒有登記煮菜。下週煮完記得按「煮好了」。</p>'}</div>
+    <div><h3>冰箱現在有</h3>${rec.pantry.length?`<p class="small" style="margin:4px 0 0">${rec.pantry.map(x=>`${esc(x.n)}（${x.v>=1?(+x.v.toFixed(1))+' 包':'一些'}）`).join('、')}</p>`:'<p class="small muted" style="margin:4px 0 0">沒有剩下要記的食材。</p>'}</div>
+  </section>`;
+}
+function monthReportHTML(month){
+  const weeks=(S.history||[]).filter(w=>w.end.slice(0,7)===month);
+  if(!weeks.length) return '';
+  const spent=weeks.reduce((a,w)=>a+w.spent,0), times=weeks.reduce((a,w)=>a+w.cooked.reduce((x,c)=>x+c.times,0),0);
+  const dishes=new Map(); weeks.forEach(w=>w.cooked.forEach(c=>dishes.set(c.n,(dishes.get(c.n)||0)+c.times)));
+  const ups=weeks.flatMap(w=>w.ups), masters=ups.filter(u=>u.to===3);
+  const prevKey=(()=>{ const y=+month.slice(0,4), m=+month.slice(5,7); return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,'0')}`; })();
+  const prev=(S.history||[]).filter(w=>w.end.slice(0,7)===prevKey);
+  const prevAvg=prev.length?prev.reduce((a,w)=>a+w.spent,0)/prev.length:null, avg=spent/weeks.length;
+  const mx=Math.max(...weeks.map(w=>Math.max(w.spent,w.budget)),1);
+  const top=[...dishes.entries()].sort((a,b)=>b[1]-a[1]);
+  return `<section class="report month">
+    <div class="small muted">${ym(month+'-01')}總結</div>
+    <div class="stat3">
+      <div><b class="num">${money(spent)}</b><span>這個月花了</span></div>
+      <div><b class="num">${times}</b><span>次下廚</span></div>
+      <div><b class="num">${masters.length}</b><span>道新的拿手菜</span></div>
+    </div>
+    <p class="small" style="margin:0">平均每週 ${money(avg)}${prevAvg!==null?`，${avg>prevAvg?`比上個月多 ${money(avg-prevAvg)}`:`比上個月少 ${money(prevAvg-avg)}`}`:''}。煮過 ${dishes.size} 道不同的菜。</p>
+    <div class="bars" aria-label="每週花費">${weeks.map(w=>`<div class="barcol"><span class="num small">${Math.round(w.spent)}</span><i style="height:${Math.round(w.spent/mx*80)}px;background:${w.spent>w.budget?'var(--tomato)':'var(--leaf)'}"></i><span class="small muted">${md(w.end)}</span></div>`).join('')}</div>
+    ${masters.length?`<div><h3>這個月的新拿手菜</h3><div class="chips">${masters.map(u=>`<span class="badge st3">${esc(u.n)}</span>`).join('')}</div></div>`:''}
+    ${ups.length?`<div><h3>這個月進步的菜</h3><p class="small" style="margin:4px 0 0">${ups.map(u=>`${esc(u.n)}（${STAGES[u.from].n}→${STAGES[u.to].n}）`).join('、')}</p></div>`:''}
+    ${top.length?`<div><h3>最常煮的</h3><p class="small" style="margin:4px 0 0">${top.slice(0,5).map(([n,c])=>`${esc(n)} ${c} 次`).join('、')}</p></div>`:''}
+  </section>`;
+}
+function openReport(html,fresh){
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rt">
+    <div class="grab"></div>
+    <h2 id="rt">${fresh?'結算報告':'歷史報告'}</h2>
+    ${html}
+    ${fresh?'<p class="small muted" style="margin:0">新一週的菜單已經抽好了。以前的報告在「熟練度」頁最下面。</p>':''}
+    <div class="sticky-cta"><button class="btn primary big" id="sclose">${fresh?'好，開始新的一週':'關閉'}</button></div>
+  </div></div>`;
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+}
+function historyHTML(){
+  const h=S.history||[];
+  if(!h.length) return '<p class="small muted" style="margin:6px 0 0">還沒有報告。一週結束按「結算並開始下一週」就會產生第一份。</p>';
+  const months=[...new Set(h.map(w=>w.end.slice(0,7)))].reverse();
+  return months.map(m=>`<div class="group"><h3>${ym(m+'-01')}</h3><div class="chips" style="margin-top:6px">
+    <button class="btn tiny on" data-month="${m}">整個月</button>
+    ${h.map((w,i)=>[w,i]).filter(([w])=>w.end.slice(0,7)===m).reverse().map(([w,i])=>`<button class="btn tiny" data-week="${i}">${md(w.start)}–${md(w.end)} · ${money(w.spent)}</button>`).join('')}
+  </div></div>`).join('');
+}
+
 function openHelp(){
   $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ht">
     <div class="grab"></div>
@@ -1485,6 +1592,7 @@ function openHelp(){
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
       <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，從這週煮好的菜裡抽今天這一餐，可以整餐重抽或只換一樣。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
+      <li><b>結算報告</b>：每週結算後會跳出報告：花了多少錢（照你勾的和實際買的包數算）、煮了什麼、哪些菜升級、冰箱剩什麼。每個月第一次結算會多一份上個月的總結。以前的報告在「熟練度」頁最下面。</li>
       <li><b>冰箱和櫃子</b>：在「採買」頁最下面，可以用 − / ＋ 調整數量，用完按「用完了」。促銷多買的：清單上有的，勾了以後按「＋」改成實際買的包數；清單上沒有的，用選單加進冰箱。</li>
       <li><b>人數和不吃的東西</b>：「設定」可以選 1～5 人份，人多的時候每餐的菜會變多。也可以勾自己不吃的食材，抽菜就不會出現。</li>
       <li><b>每兩週加新菜</b>：「熟練度」頁最下面按「加入 3 道新菜」，舊的菜都會留著。</li>
@@ -1605,6 +1713,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
   if(t.dataset.bq){ e.preventDefault(); const [k,d]=t.dataset.bq.split('|'); const it=shopping(S,S.plan).items.find(i=>i.id===k); const cur=S.bought?.[k]??(it?it.packs:1); S.bought={...(S.bought||{}),[k]:Math.max(0,cur+ +d)}; save(); render(); return; }
   if(t.dataset.pq){ const [k,d]=t.dataset.pq.split('|'); const v=+((S.pantry[k]||0)+ +d).toFixed(2); if(v<=0.05) delete S.pantry[k]; else S.pantry[k]=v; save(); render(); return; }
+  if(t.dataset.week){ const w=S.history[+t.dataset.week]; if(w) openReport(weekReportHTML(w)); return; }
+  if(t.dataset.month){ openReport(monthReportHTML(t.dataset.month)); return; }
   if(t.dataset.unpantry){ delete S.pantry[t.dataset.unpantry]; save(); render(); return; }
   if(t.dataset.mode){ if(spinning||daySpinning) return; mode=t.dataset.mode; render(); return; }
   if(t.dataset.dayswap){ spinDay(t.dataset.dayswap); return; }
@@ -1654,6 +1764,7 @@ new MutationObserver(redrawWheels).observe(document.documentElement,{attributes:
 
 // ---------- 啟動
 const local=loadLocal(); if(local) S=merge(local);
+if(!S.weekStart){ S.weekStart=iso(new Date()); save(); }
 render();
 setSync(S.lastBackup?`紀錄存在這支手機。上次備份：${S.lastBackup}`:'紀錄存在這支手機，記得偶爾到「設定」備份');
 document.fonts?.ready?.then(redrawWheels);
