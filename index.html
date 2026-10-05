@@ -1,0 +1,1424 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>開伙轉盤</title>
+<meta name="theme-color" content="#D9503A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="開伙轉盤">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Nunito:wght@700;800;900&display=swap">
+<style>
+/* Layout: one phone-width column; wheel up top on the home tab, cards below, tab bar pinned to the bottom for thumbs.
+   Palette from a home kitchen: tomato (action), egg yolk (mastery), leaf (progress), sky (beginner). */
+:root{
+  --bg:#EEF3EC; --surface:#FFFFFF; --ink:#24302A; --muted:#667369; --line:#DCE5DC;
+  --tomato:#D9503A; --tomato-soft:#FBE3DD; --yolk:#C98A0C; --yolk-bright:#F2B634; --yolk-soft:#FCEFCB;
+  --leaf:#2F7D4F; --leaf-soft:#DCEFE2; --sky:#3D79B8; --sky-soft:#E0EBF7; --shadow:0 1px 2px rgb(36 48 42 / .06),0 4px 14px rgb(36 48 42 / .06);
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --f-num:"Nunito","Noto Sans TC",ui-rounded,system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#131915; --surface:#1C2420; --ink:#E7EEE9; --muted:#9BAAA1; --line:#2C3832;
+  --tomato:#FF7B64; --tomato-soft:#3B221D; --yolk:#F5C451; --yolk-bright:#F5C451; --yolk-soft:#3A3018;
+  --leaf:#6CC690; --leaf-soft:#1C3527; --sky:#88B5E8; --sky-soft:#1C2B3C; --shadow:none; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131915; --surface:#1C2420; --ink:#E7EEE9; --muted:#9BAAA1; --line:#2C3832;
+  --tomato:#FF7B64; --tomato-soft:#3B221D; --yolk:#F5C451; --yolk-bright:#F5C451; --yolk-soft:#3A3018;
+  --leaf:#6CC690; --leaf-soft:#1C3527; --sky:#88B5E8; --sky-soft:#1C2B3C; --shadow:none; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.app{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:14px calc(96px + env(safe-area-inset-bottom,0px))}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:24px;font-weight:900;letter-spacing:.01em}
+h2{font-size:18px;font-weight:900}
+h3{font-size:15px;font-weight:700}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:800}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{opacity:.45;cursor:default}
+:focus-visible{outline:2px solid var(--tomato);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 14px;font-size:14px;font-weight:500}
+.btn.primary{background:var(--tomato);border-color:var(--tomato);color:#fff;font-weight:700}
+.btn.big{font-size:17px;padding:13px 20px;border-radius:16px;width:100%}
+.btn.on{background:var(--leaf-soft);border-color:var(--leaf);color:var(--leaf);font-weight:700}
+.btn.tiny{padding:3px 10px;font-size:12.5px;border-radius:9px}
+.card{background:var(--surface);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--line);padding:16px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.brand{font-size:12.5px;color:var(--muted);font-weight:700;letter-spacing:.12em}
+.pill{border:0;border-radius:999px;padding:6px 12px;font-size:13px;background:var(--leaf-soft);color:var(--leaf);font-weight:700;white-space:nowrap}
+.pill.over{background:var(--tomato-soft);color:var(--tomato)}
+.hint{border:0;border-radius:12px;background:var(--yolk-soft);color:var(--yolk);font-weight:700;font-size:13px;padding:8px 12px;width:100%;text-align:left;margin-bottom:12px}
+
+/* wheel */
+.wheelcard{display:flex;flex-direction:column;align-items:center;gap:12px;padding-block:18px}
+.wheelwrap{position:relative;width:min(78vw,300px);aspect-ratio:1;max-width:100%}
+.wheelwrap canvas{width:100%;height:100%;display:block;border-radius:50%;will-change:transform}
+.pointer{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:24px solid var(--tomato);filter:drop-shadow(0 2px 2px rgb(0 0 0 / .2));z-index:2}
+.hub{position:absolute;inset:0;margin:auto;width:30%;height:30%;border-radius:50%;background:var(--surface);border:3px solid var(--tomato);display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-weight:700;line-height:1.3;padding:4px;color:var(--ink);z-index:1}
+.result{min-height:26px;font-weight:700;text-align:center}
+.result b{color:var(--tomato)}
+.spinrow{display:flex;gap:8px;width:100%}
+.spinrow .btn.big{flex:1}
+
+/* slot controls */
+.slot:has(> .icobtns){grid-template-columns:auto 1fr auto}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.ctrl button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:3px 10px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.ctrl button.on{background:var(--yolk-soft);border-color:var(--yolk);color:var(--yolk)}
+.ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.slot.sel{background:var(--yolk-soft);border-radius:12px;margin-inline:-8px;padding-inline:8px}
+.tag.sp{background:var(--yolk-soft);color:var(--yolk)}
+/* mode switch */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px}
+.seg button{border:0;background:none;border-radius:10px;padding:9px 4px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.seg button[aria-selected="true"]{background:var(--tomato);color:#fff}
+.wheelwrap.small{width:min(62vw,230px)}
+/* session */
+.sess-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.slot{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:center;padding-block:12px;border-top:1px solid var(--line)}
+.slot:first-of-type{border-top:0}
+.role{font-size:11.5px;font-weight:700;border-radius:8px;padding:2px 7px;white-space:nowrap;align-self:start;margin-top:3px}
+.role.special{background:var(--tomato-soft);color:var(--tomato)}
+.role.main{background:var(--yolk-soft);color:var(--yolk)}
+.role.side{background:var(--sky-soft);color:var(--sky)}
+.role.veg{background:var(--leaf-soft);color:var(--leaf)}
+.role.bf{background:var(--line);color:var(--muted)}
+.slot .mid{min-width:0;display:flex;flex-direction:column;gap:3px}
+.dname{border:0;background:none;padding:0;text-align:left;font-size:16.5px;font-weight:700;line-height:1.35}
+.dname.hide{color:var(--muted);letter-spacing:.3em}
+.dname.pop{animation:pop .45s ease}
+@keyframes pop{0%{transform:scale(.85);opacity:.3}60%{transform:scale(1.06)}100%{transform:none;opacity:1}}
+.meta{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center}
+.icobtns{display:flex;flex-direction:column;gap:6px}
+.ico{width:34px;height:34px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.ico.on{background:var(--yolk-soft);border-color:var(--yolk);color:var(--yolk)}
+.plates{background:var(--bg);border-radius:14px;padding:10px 12px;font-size:13.5px;display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.plates .lbl{font-weight:700;color:var(--muted);font-size:12px}
+details.flow{margin-top:8px;font-size:13.5px}
+details.flow summary{cursor:pointer;font-weight:700;color:var(--leaf);list-style:none}
+details.flow summary::-webkit-details-marker{display:none}
+details.flow summary::before{content:"▸ ";}
+details.flow[open] summary::before{content:"▾ ";}
+details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+
+/* stage badge + pips */
+.badge{font-size:11.5px;font-weight:700;border-radius:999px;padding:0 8px;line-height:20px;white-space:nowrap}
+.st0{background:var(--line);color:var(--muted)}
+.st1{background:var(--sky-soft);color:var(--sky)}
+.st2{background:var(--leaf-soft);color:var(--leaf)}
+.st3{background:var(--yolk-soft);color:var(--yolk)}
+.pips{display:inline-flex;gap:3px;vertical-align:middle}
+.pips i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line);display:block}
+.pips i.f{background:var(--leaf);border-color:var(--leaf)}
+.pips.gold i.f{background:var(--yolk-bright);border-color:var(--yolk-bright)}
+.pips.lg i{width:14px;height:14px}
+.tag{font-size:11.5px;border-radius:999px;padding:0 7px;line-height:19px;white-space:nowrap}
+.tag.mem{background:var(--tomato-soft);color:var(--tomato)}
+.tag.buy{border:1px dashed var(--tomato);color:var(--tomato)}
+.tag.new{border:1px solid var(--line);color:var(--muted)}
+
+/* skills */
+.hero{display:flex;flex-direction:column;gap:10px;background:linear-gradient(135deg,var(--yolk-soft),var(--leaf-soft));border:0}
+.hero .title{font-size:26px;font-weight:900}
+.bar{height:10px;border-radius:5px;background:var(--surface);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--leaf);border-radius:5px}
+.counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;text-align:center}
+.counts div{background:var(--surface);border-radius:12px;padding:6px 2px;font-size:12px;color:var(--muted)}
+.counts b{display:block;font-size:20px;color:var(--ink)}
+.ladder{display:flex;gap:6px;font-size:12px;flex-wrap:wrap;color:var(--muted)}
+.ladder span{display:flex;align-items:center;gap:4px}
+.sec-h{display:flex;align-items:center;gap:8px;margin-top:6px}
+.skill{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding-block:12px;border-top:1px solid var(--line)}
+.skill:first-of-type{border-top:0}
+.skill .mid{min-width:0;display:flex;flex-direction:column;gap:4px}
+.skill .next{font-size:12.5px;color:var(--muted)}
+.plus{display:flex;gap:6px;align-items:center}
+.plus .add{width:44px;height:44px;border-radius:14px;border:0;background:var(--leaf);color:#fff;font-size:22px;font-weight:900;font-family:var(--f-num)}
+.plus .sub{width:30px;height:30px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:13.5px}
+.update.due{background:var(--yolk-soft);border-color:var(--yolk)}
+
+/* shop */
+.trip-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.group h3{font-size:12.5px;color:var(--muted);letter-spacing:.1em;margin-top:12px}
+.item{display:grid;grid-template-columns:26px 1fr auto;gap:0 8px;align-items:start;padding-block:9px;border-top:1px solid var(--line)}
+.item input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--leaf)}
+.item .nm{font-weight:500}
+.item.done .nm{text-decoration:line-through;color:var(--muted)}
+.item .note{grid-column:2/-1;font-size:12px;color:var(--muted)}
+.price{display:flex;align-items:center;gap:1px;font-family:var(--f-num);font-weight:800}
+.price input{width:58px;text-align:right;border:1px solid transparent;background:transparent;border-radius:6px;padding:1px 4px;font:inherit;color:var(--ink)}
+.price input:focus,.price input:hover{border-color:var(--line);background:var(--bg)}
+.total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
+
+/* settings */
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-block:4px}
+.row input[type=number]{width:96px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--f-num);font-weight:800;font-size:15px}
+
+/* bottom nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));z-index:10}
+nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+nav.tabs button{border:0;background:none;border-radius:12px;padding:6px 2px;font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button[aria-selected="true"]{color:var(--tomato);background:var(--tomato-soft)}
+
+/* sheet */
+.overlay{position:fixed;inset:0;background:rgb(0 0 0 / .42);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:24px 24px 0 0;padding:10px 18px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;animation:up .25s ease}
+@keyframes up{from{transform:translateY(30px);opacity:.5}to{transform:none;opacity:1}}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}
+.sheet ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.sheet ul.ing{margin:0;padding-left:18px;columns:2;column-gap:16px}
+.challenge{background:var(--yolk-soft);border-radius:14px;padding:12px 14px}
+.challenge .k{font-size:12px;font-weight:700;color:var(--yolk)}
+.vars{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.vars div{display:flex;gap:8px;align-items:flex-start}
+.vars .lock{color:var(--muted)}
+.tip{background:var(--bg);border-radius:12px;padding:10px 12px;font-size:14px}
+.sticky-cta{position:sticky;bottom:0;padding-top:8px;background:linear-gradient(to bottom,transparent,var(--surface) 30%)}
+
+/* celebrate */
+.celebrate{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgb(0 0 0 / .5);padding:16px}
+.celebrate .box{background:var(--surface);border-radius:24px;padding:26px 22px;text-align:center;max-width:360px;width:100%;display:flex;flex-direction:column;gap:10px;animation:pop .5s ease;position:relative;overflow:hidden}
+.celebrate .up{font-size:30px;font-weight:900;color:var(--tomato)}
+.celebrate .from{display:flex;justify-content:center;align-items:center;gap:8px;font-size:15px}
+.celebrate canvas{position:absolute;inset:0;pointer-events:none}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+.foot{font-size:12.5px;color:var(--muted);text-align:center;margin-top:18px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px)} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div><div class="brand">開伙轉盤</div><h1 id="greet">這週想吃什麼？</h1></div>
+    <div style="display:flex;gap:6px;align-items:center"><button class="pill" id="budgetPill" data-tab="shop">NT$ —</button><button class="pill" id="btnHelp" aria-label="使用說明" style="background:var(--surface);color:var(--muted);border:1px solid var(--line)">?</button></div>
+  </header>
+  <button class="hint" id="dueHint" data-tab="skill" hidden>兩週了，可以去「熟練度」加入新菜</button>
+
+  <main id="tab-spin" class="stack"></main>
+  <main id="tab-shop" class="stack" hidden></main>
+  <main id="tab-skill" class="stack" hidden></main>
+  <main id="tab-set" class="stack" hidden></main>
+  <p class="foot" id="sync"></p>
+</div>
+
+<nav class="tabs" aria-label="分頁"><div class="in" role="tablist">
+  <button role="tab" data-tab="spin" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4M12 12 5.6 18.4M12 12H3"/></svg>抽菜</button>
+  <button role="tab" data-tab="shop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7h-9a2 2 0 0 1-2-1.7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>採買</button>
+  <button role="tab" data-tab="skill" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>熟練度</button>
+  <button role="tab" data-tab="set" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>設定</button>
+</div></nav>
+<div id="sheetRoot"></div>
+<div id="celebrateRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+//#core-start
+// ---------- 食材（全聯常見包裝與估價）[名稱, 包裝, 價格, 分類]
+const ING = {
+  pork_slice:['梅花豬肉片','300g',129,'肉類'],
+  pork_belly:['五花肉片','300g',139,'肉類'],
+  pork_chop:['梅花豬排','3片',149,'肉類'],
+  pork_block:['梅花肉塊','400g',169,'肉類'],
+  ribs:['豬小排','400g',179,'肉類'],
+  chicken_thigh:['去骨雞腿排','2片',159,'肉類'],
+  chicken_drum:['雞腿切塊','600g',169,'肉類'],
+  beef_hotpot:['火鍋牛肉片','200g',149,'肉類'],
+  bacon:['培根','150g',79,'肉類'],
+  shrimp:['冷凍白蝦','300g',179,'海鮮冷凍'],
+  shrimp_peeled:['冷凍蝦仁','200g',139,'海鮮冷凍'],
+  fish:['台灣鯛（吳郭魚）','1尾',99,'海鮮冷凍'],
+  balls:['火鍋料','小包',49,'海鮮冷凍'],
+  egg:['雞蛋','10顆',69,'蛋豆奶'],
+  tofu:['盒裝豆腐','1盒',25,'蛋豆奶'],
+  dougan:['豆干','1包',35,'蛋豆奶'],
+  milk:['鮮奶','936ml',89,'蛋豆奶'],
+  cheese:['起司片','12片',89,'蛋豆奶'],
+  cabbage:['高麗菜','1顆',69,'蔬菜'],
+  napa:['大白菜','半顆',39,'蔬菜'],
+  qingjiang:['青江菜','1包',35,'蔬菜'],
+  kongxin:['空心菜','1包',35,'蔬菜'],
+  spinach:['菠菜','1包',45,'蔬菜'],
+  longxu:['龍鬚菜','1包',35,'蔬菜'],
+  leafy:['地瓜葉或小白菜','1包',30,'蔬菜'],
+  tomato:['牛番茄','3顆',59,'蔬菜'],
+  onion:['洋蔥','3顆',45,'蔬菜'],
+  radish:['白蘿蔔','1根',39,'蔬菜'],
+  carrot:['紅蘿蔔','1根',20,'蔬菜'],
+  potato:['馬鈴薯','3顆',45,'蔬菜'],
+  corn:['甜玉米','2根',49,'蔬菜'],
+  enoki:['金針菇','1包',25,'蔬菜'],
+  celery:['芹菜','1把',29,'蔬菜'],
+  scallion:['青蔥','1把',29,'辛香料'],
+  basil:['九層塔','1把',20,'辛香料'],
+  ginger:['老薑','1塊',29,'辛香料'],
+  chili:['辣椒','1包',15,'辛香料'],
+  garlic:['蒜頭','1袋',39,'辛香料'],
+  pasta:['義大利麵','500g',59,'主食乾貨'],
+  noodle:['關廟麵','4人份',45,'主食乾貨'],
+  toast:['吐司','1條',45,'主食乾貨'],
+  corn_can:['玉米粒罐頭','1罐',35,'主食乾貨'],
+  tuna:['鮪魚罐頭','1罐',39,'主食乾貨'],
+  tomato_paste:['番茄糊','1罐',45,'主食乾貨'],
+  curry:['咖哩塊','1盒',75,'主食乾貨'],
+  kimchi:['韓式泡菜','400g',79,'主食乾貨'],
+  cucumber:['小黃瓜','3條',39,'蔬菜'],
+  egg_wrap:['冷凍蛋餅皮','10片',55,'海鮮冷凍'],
+  oats:['燕麥片','1包',69,'主食乾貨'],
+  sweet_potato:['地瓜','1袋',49,'蔬菜'],
+  banana:['香蕉','1串',39,'蔬菜'],
+  ham:['火腿片','1包',45,'肉類'],
+  mince:['豬絞肉','300g',99,'肉類'],
+  chicken_breast:['雞胸肉','2片',109,'肉類'],
+  clam:['冷凍蛤蠣','1包',99,'海鮮冷凍'],
+  dumplings:['冷凍水餃','25顆',99,'海鮮冷凍'],
+  bell_pepper:['青椒','2顆',39,'蔬菜'],
+  broccoli:['綠花椰菜','1顆',45,'蔬菜'],
+  bean_sprout:['綠豆芽','1包',19,'蔬菜'],
+  green_bean:['四季豆','1包',39,'蔬菜'],
+  mushroom:['鴻喜菇','1包',29,'蔬菜'],
+  fungus:['黑木耳','1盒',35,'蔬菜'],
+  udon:['烏龍麵','3入',45,'主食乾貨'],
+  rice_noodle:['米粉','1包',39,'主食乾貨'],
+  seaweed:['紫菜','1包',39,'主食乾貨'],
+};
+// 放不久的食材：沒用完就算浪費；其他的（冷凍肉、根莖類、罐頭乾貨、辛香料）會留到下週繼續用
+const PERISH=new Set(['qingjiang','kongxin','spinach','longxu','leafy','tofu','basil','celery','napa','milk','toast','cucumber','enoki','tomato','banana','ham','bean_sprout','broccoli','mushroom','fungus','bell_pepper','green_bean']);
+// 不吃：芋頭、南瓜、絲瓜、茄子（食譜和變化版都不要用到）
+const keeps=id=>!PERISH.has(id);
+const ING_CATS=['肉類','海鮮冷凍','蛋豆奶','蔬菜','辛香料','主食乾貨'];
+// ---------- 調味料 [名稱, 價格]；價格 0 = 你本來就有
+const SEA = {
+  sesame_oil:['麻油',0], pepper:['白胡椒粉',0], salt:['鹽',0], soy:['醬油',0], vinegar:['醋',0],
+  oil:['食用油',99], sugar:['砂糖',45], rice_wine:['料理米酒',39], black_pepper:['粗粒黑胡椒',59],
+  butter:['無鹽奶油',99], bean_paste:['辣豆瓣醬',55], furu:['豆腐乳',49], shrimp_paste:['蝦醬',59],
+  sesame_paste:['芝麻醬',79], mayo:['美乃滋',59], miso:['味噌',79], oyster:['蠔油',65], sacha:['沙茶醬',69], ketchup:['番茄醬',39],
+};
+const START_OWNED = ['sesame_oil','pepper','salt','soy','vinegar'];
+
+// roles: special 開伙當天現吃 / main 備餐主菜 / side 備餐配菜或湯 / veg 每日青菜 / bf 早餐
+// sv = 這份食材的份數；use 數量 = 幾「包」；cook: pot 要長時間燉 / pan 平底鍋 / fresh 現煮
+const R = [
+ {id:'sanbei',n:'三杯雞',roles:['main'],lv:2,mem:1,sv:3,use:{chicken_drum:1,ginger:.5,basil:1,garlic:.3},sea:['sesame_oil','soy','rice_wine','sugar'],cook:'pan',min:30,
+  reheat:'電鍋外鍋半杯水或微波 2 分鐘。九層塔可留一些，加熱後再放。',
+  steps:['薑切片、蒜頭拍扁，九層塔洗好摘葉。','平底鍋倒 3 大匙麻油，小火煸薑片 5 分鐘到邊緣捲起。麻油不能大火，會苦。','放蒜頭和雞肉，中火煎到表面金黃。','醬油、米酒各 3 大匙，加糖 1 大匙，蓋鍋小火燜 10 分鐘，中間翻一次。','開蓋收汁到醬汁變稠，關火前放九層塔拌一下。'],
+  tip:'「三杯」原本是麻油、醬油、米酒各一杯，一人煮用各 3 大匙就夠。'},
+ {id:'porkchop',n:'香煎豬排',roles:['main'],lv:1,mem:1,sv:3,use:{pork_chop:1,garlic:.2},sea:['soy','sugar','pepper','oil'],cook:'pan',min:25,
+  reheat:'微波 1 分半或電鍋外鍋 1/3 杯水，熱太久肉會柴。',
+  steps:['豬排用刀背兩面拍鬆，邊緣的白筋剪幾刀，煎的時候才不會捲起來。','醃料：醬油 2 大匙、糖 1 小匙、胡椒粉、蒜末，醃 20 分鐘以上（前一晚醃更入味）。','平底鍋少許油中火，豬排下鍋先不要動，煎 2–3 分鐘到底面金黃再翻。','翻面再煎 2 分鐘，倒入剩下的醃汁收一下。切開中心沒有血水就好。'],
+  tip:'之後買了太白粉，醃好再拍一層薄粉，外皮更香、肉更嫩。'},
+ {id:'chicken_pan',n:'香煎雞腿排',roles:['main'],lv:1,mem:1,sv:2,use:{chicken_thigh:1},sea:['salt','pepper','soy'],cook:'pan',min:25,
+  reheat:'電鍋外鍋 1/3 杯水，或平底鍋小火回煎皮面 1 分鐘恢復脆度。',
+  steps:['雞腿排用紙巾擦乾，肉面劃幾刀，抹鹽、胡椒粉、少許醬油，放 15 分鐘。','冷鍋、不放油，皮朝下放進去，再開中小火。','慢慢煎 8 分鐘，雞油會自己逼出來，皮變金黃酥脆。','翻面再煎 5 分鐘，最厚的地方切開沒有血水就熟了。'],
+  tip:'這是你筆記裡「烤雞腿」的平底鍋版。冷鍋下皮是脆皮的關鍵，不用買烤箱。'},
+ {id:'teriyaki',n:'照燒雞腿',roles:['main'],lv:1,mem:0,sv:2,use:{chicken_thigh:1,scallion:.3},sea:['soy','sugar','rice_wine'],cook:'pan',min:25,
+  reheat:'電鍋或微波都可以，醬汁會讓肉保持濕潤，很適合備餐。',
+  steps:['照「香煎雞腿排」的方法，冷鍋皮朝下煎到兩面金黃。','用紙巾把鍋裡多餘的雞油吸掉一些。','醬油 2 大匙、米酒 2 大匙、糖 1 大匙調好倒進鍋，中火煮滾。','一直把醬汁淋在雞肉上，收到醬汁冒大泡、變亮變稠。','切塊撒蔥花。'],
+  tip:'學會香煎雞腿排以後，多一步醬汁就是照燒，很好的進階練習。'},
+ {id:'ginger_pork',n:'薑燒豬肉',roles:['main'],lv:1,mem:0,sv:2,use:{pork_slice:1,onion:.33,ginger:.3},sea:['soy','sugar','rice_wine','oil'],cook:'pan',min:20,
+  reheat:'微波 1 分半，配飯很下飯。',
+  steps:['薑磨泥或切很細的末，洋蔥切絲。','醬汁：醬油 2、米酒 2、糖 1 大匙，加薑泥拌勻。','鍋熱少許油，洋蔥炒軟。','放肉片攤開，兩面變色後倒入醬汁，中火炒到收汁。'],
+  tip:'日式家常菜，10 分鐘就好，是練「醬汁收乾」的入門菜。'},
+ {id:'huiguo',n:'回鍋肉',roles:['main'],lv:2,mem:1,sv:3,use:{pork_belly:1,cabbage:.4,dougan:1,garlic:.2,scallion:.3},sea:['bean_paste','soy','sugar','oil'],cook:'pan',min:25,
+  reheat:'微波 2 分鐘，高麗菜會軟一點但很入味。',
+  steps:['高麗菜用手撕大片，豆干切片，蔥切段，蒜切片。','鍋裡少許油，五花肉片中火煎到出油、邊緣微焦，先盛起。','用肉的油煎豆干到兩面微焦。','放蒜片和辣豆瓣醬 1 大匙，小火炒出紅油。','肉片回鍋，加高麗菜大火炒軟，醬油 1 大匙、糖 1 小匙調味，最後放蔥。'],
+  tip:'豆瓣醬要先用油炒香再放菜，香氣差很多。'},
+ {id:'hakka',n:'客家小炒',roles:['main'],lv:3,mem:1,sv:3,use:{pork_belly:.7,dougan:1,celery:1,scallion:.4,garlic:.2,chili:.3},sea:['soy','sugar','rice_wine','pepper'],cook:'pan',min:30,
+  reheat:'微波 2 分鐘。芹菜會變軟，但味道更融合。',
+  steps:['五花肉、豆干切條，芹菜和蔥切段，蒜切片、辣椒切斜片。','五花肉不放油，中火煸到出油、肉變乾香，大約 6 分鐘。','放豆干一起煎到表面微焦。','蒜、辣椒下鍋，醬油 2 大匙、糖 1 小匙，米酒 1 大匙沿著鍋邊倒進去嗆香。','芹菜和蔥大火翻炒 30 秒，撒胡椒粉起鍋。'],
+  tip:'原版還有乾魷魚，先學這個簡化版，熟練後再加。'},
+ {id:'radish_pork',n:'蘿蔔燉肉',roles:['main'],lv:2,mem:1,sv:4,use:{pork_block:1,radish:.6,ginger:.3,scallion:.3},sea:['soy','sugar','rice_wine','oil'],cook:'pot',min:60,
+  reheat:'電鍋外鍋半杯水。放隔天更入味，最適合週日做。',
+  steps:['肉切塊，冷水下快煮鍋，水滾後再煮 2 分鐘，撈起沖掉浮沫。','平底鍋少許油，放糖 1 大匙小火煮到焦糖色，馬上下肉翻炒上色。','加薑片、蔥段、醬油 4 大匙、米酒 3 大匙炒香。','全部倒進快煮鍋，加水蓋過肉，放蘿蔔塊。','煮滾後轉小火燉 40 分鐘（或放宿舍電鍋，外鍋 2 杯水）。'],
+  tip:'炒糖色是滷味好看的秘密：糖一變琥珀色就下肉，晚幾秒就會苦。'},
+ {id:'braised',n:'電鍋滷肉滷蛋',roles:['main'],lv:1,mem:0,sv:4,use:{pork_block:1,egg:.4,dougan:1,garlic:.2,scallion:.3},sea:['soy','sugar','rice_wine'],cook:'pot',min:60,
+  reheat:'電鍋外鍋半杯水，滷汁可以拌飯。',
+  steps:['蛋冷水下快煮鍋，水滾後煮 8 分鐘，泡冷水剝殼。','肉切塊，平底鍋不放油煎到四面微焦出油。','肉、蛋、豆干、蒜頭、蔥段放進電鍋內鍋。','醬油 5 大匙、米酒 3 大匙、糖 1 大匙，加水剛好蓋過食材。','外鍋 2 杯水，跳起來後燜 20 分鐘，再加 1 杯水蒸一次更軟。'],
+  tip:'幾乎不用顧火，第一次開伙最推薦。'},
+ {id:'curry',n:'日式咖哩',roles:['main'],lv:1,mem:0,sv:4,use:{pork_block:.7,onion:.67,carrot:.5,potato:.67,curry:.5},sea:['oil'],cook:'pot',min:45,
+  reheat:'電鍋或微波，咖哩放隔天最好吃。',
+  steps:['肉、馬鈴薯、紅蘿蔔切塊，洋蔥切絲。','快煮鍋少許油，先炒洋蔥到軟，再下肉炒到變色。','放紅蘿蔔、馬鈴薯，加水約 600ml，煮滾後撈掉浮沫，小火煮 20 分鐘。','關火，放半盒咖哩塊攪到融化，再開小火煮 5 分鐘，要一直攪才不會黏底。'],
+  tip:'咖哩塊一定要關火才放，不然會結塊。'},
+ {id:'sesame_chicken',n:'麻油雞',roles:['main','special'],lv:1,mem:0,sv:3,use:{chicken_drum:1,ginger:.5},sea:['sesame_oil','rice_wine'],cook:'pot',min:35,
+  reheat:'快煮鍋或電鍋加熱，可以多加一點水當湯喝。',
+  steps:['老薑連皮切片。','快煮鍋倒 3 大匙麻油，小火煸薑片到邊緣捲起微乾。','下雞肉，中火炒到表面變白。','倒入米酒半瓶（約 300ml）和等量的水，煮滾後小火 20 分鐘。','試味道，不夠鹹再加一點鹽。'],
+  tip:'你已經有麻油了，只要再買米酒就能做。天冷時很適合。'},
+ {id:'kimchi_pot',n:'泡菜豬肉鍋',roles:['special','main'],lv:1,mem:0,sv:2,use:{kimchi:.5,pork_slice:.5,tofu:1,onion:.33,enoki:1},sea:['soy','sugar'],cook:'pot',min:20,
+  reheat:'快煮鍋重新煮滾就好，隔天泡菜味更濃。',
+  steps:['洋蔥切絲，豆腐切塊，金針菇切掉根部撥散。','快煮鍋少許麻油，炒肉片到變色，放泡菜一起炒 1 分鐘。','加水約 500ml、醬油 1 大匙、糖 1 小匙，煮滾。','放洋蔥、豆腐、金針菇，再煮 5 分鐘。'],
+  tip:'先把泡菜和肉炒過再加水，湯頭會比直接煮香很多。'},
+ {id:'tomato_egg',n:'番茄炒蛋',roles:['side'],lv:1,mem:1,sv:2,use:{tomato:.67,egg:.3,scallion:.2},sea:['sugar','salt','oil'],cook:'pan',min:15,
+  reheat:'微波 1 分鐘。',
+  steps:['番茄切塊，蛋打散加一小撮鹽。','鍋熱多一點油，倒蛋液，半熟就盛起來。','原鍋炒番茄到出汁變軟，大約 3 分鐘。','加糖 1 小匙、鹽少許，蛋倒回去拌勻，撒蔥花。'],
+  tip:'蛋先炒到半熟起鍋，最後回鍋，蛋才會嫩。'},
+ {id:'basil_egg',n:'九層塔炒蛋',roles:['side'],lv:1,mem:1,sv:2,use:{egg:.3,basil:1},sea:['salt','oil'],cook:'pan',min:10,
+  reheat:'微波 1 分鐘，當天吃最香。',
+  steps:['九層塔摘葉切碎，和 3 顆蛋、一撮鹽一起打勻。','鍋熱 2 大匙油，倒入蛋液，邊緣凝固後大塊翻面。','兩面金黃就起鍋。'],
+  tip:'油要夠熱，蛋才會蓬。'},
+ {id:'carrot_egg',n:'紅蘿蔔炒蛋',roles:['side'],lv:1,mem:0,sv:2,use:{carrot:1,egg:.3,garlic:.1},sea:['salt','oil'],cook:'pan',min:15,
+  reheat:'微波 1 分鐘，放 3 天沒問題。',
+  steps:['紅蘿蔔刨絲（或切細絲），蛋打散。','鍋熱油，先炒蛋到半熟盛起。','炒蒜末和紅蘿蔔絲到變軟，大約 3 分鐘。','蛋回鍋，加鹽拌勻。'],
+  tip:'紅蘿蔔用油炒，營養比較好吸收。很便宜又耐放的配菜。'},
+ {id:'cabbage_garlic',n:'蒜炒高麗菜',roles:['side'],lv:1,mem:1,sv:3,use:{cabbage:.5,garlic:.15,carrot:.3},sea:['oil','salt'],cook:'pan',min:15,
+  reheat:'微波 1 分半，高麗菜放 3 天還可以。',
+  steps:['高麗菜用手撕成片，洗好瀝乾；蒜切片，紅蘿蔔切片。','鍋熱油，蒜片炒香。','高麗菜和紅蘿蔔下鍋大火翻炒，沿鍋邊加 2 大匙水，蓋鍋 1 分鐘。','開蓋加鹽炒勻。'],
+  tip:'手撕的高麗菜比刀切的更好吃，斷面比較能吸味道。'},
+ {id:'cabbage_shrimp',n:'蝦醬炒高麗菜',roles:['side'],lv:2,mem:1,sv:3,use:{cabbage:.5,garlic:.15,chili:.2},sea:['shrimp_paste','oil'],cook:'pan',min:15,
+  reheat:'微波 1 分半。',
+  steps:['高麗菜撕片，蒜、辣椒切片。','鍋熱油，蒜和辣椒炒香，加蝦醬 1 大匙小火炒 30 秒。','高麗菜下鍋大火翻炒，加 2 大匙水蓋鍋 1 分鐘。','開蓋炒勻，蝦醬已經有鹹味，先試再決定要不要加鹽。'],
+  tip:'蒜炒高麗菜熟了以後的進階版。'},
+ {id:'napa_stew',n:'白菜滷',roles:['side'],lv:2,mem:0,sv:3,use:{napa:1,carrot:.3,egg:.2,enoki:1,garlic:.1},sea:['soy','pepper','oil'],cook:'pot',min:30,
+  reheat:'快煮鍋或微波，越放越甜。',
+  steps:['蛋打散，鍋熱油煎成蛋皮，切小塊（台式白菜滷的「蛋酥」簡化版）。','蒜、紅蘿蔔絲先炒香。','大白菜切大塊下鍋，炒軟後移到快煮鍋。','加金針菇、蛋塊、醬油 1 大匙、水約 200ml，小火煮 15 分鐘，撒胡椒粉。'],
+  tip:'大白菜自己會出很多水，水不用加太多。'},
+ {id:'radish_rib',n:'蘿蔔排骨湯',roles:['side'],lv:1,mem:1,sv:4,use:{ribs:1,radish:.5,ginger:.2},sea:['salt'],cook:'pot',min:50,
+  reheat:'快煮鍋重新煮滾。',
+  steps:['排骨冷水下快煮鍋，水滾後煮 2 分鐘，倒掉水、沖掉浮沫。','重新加水約 1.2 公升，放薑片，煮滾後轉小火 20 分鐘。','白蘿蔔去皮切塊放進去，再煮 20 分鐘到蘿蔔透明。','最後才加鹽。'],
+  tip:'排骨先汆燙，湯才會清。鹽最後放，肉比較不會老。'},
+ {id:'corn_rib',n:'玉米排骨湯',roles:['side'],lv:1,mem:1,sv:4,use:{ribs:1,corn:1,carrot:.5},sea:['salt'],cook:'pot',min:50,
+  reheat:'快煮鍋重新煮滾。',
+  steps:['排骨汆燙：冷水下鍋，滾 2 分鐘後倒掉水沖乾淨。','加水約 1.2 公升，放玉米段和紅蘿蔔塊。','煮滾後小火 30–40 分鐘。','加鹽調味。'],
+  tip:'和蘿蔔排骨湯是同一套做法，換食材就是新的湯。'},
+ {id:'borscht',n:'羅宋湯',roles:['side'],lv:2,mem:1,sv:4,use:{pork_block:.5,tomato:.67,onion:.67,cabbage:.3,carrot:.5,potato:.67,tomato_paste:1},sea:['sugar','salt','oil'],cook:'pot',min:60,
+  reheat:'快煮鍋重新煮滾，放兩三天更濃。',
+  steps:['所有蔬菜和肉切小塊。','快煮鍋少許油，洋蔥炒軟，再放肉炒到變色。','加番茄、番茄糊，炒到番茄出汁。','放紅蘿蔔、馬鈴薯、高麗菜，加水約 1.2 公升。','煮滾後小火 40 分鐘，用鹽和糖 1 小匙調味。'],
+  tip:'番茄糊要先炒過，酸味會變溫和、顏色更紅。'},
+ {id:'tofu_soup',n:'番茄豆腐蛋花湯',roles:['side'],lv:1,mem:0,sv:3,use:{tomato:.67,tofu:1,egg:.2,scallion:.2},sea:['salt','sesame_oil','pepper'],cook:'pot',min:15,
+  reheat:'快煮鍋重新煮滾。',
+  steps:['番茄切塊，豆腐切小塊。','快煮鍋加水約 800ml，放番茄煮 5 分鐘到出味。','放豆腐再煮 3 分鐘，加鹽。','關到小火，蛋液繞圈慢慢倒進去，等 10 秒再攪。','滴麻油、撒胡椒粉和蔥花。'],
+  tip:'只用你現有的調味料就能做。蛋液要等湯小滾再倒，蛋花才會漂亮。'},
+ {id:'qingjiang',n:'炒青江菜',roles:['veg'],lv:1,mem:1,sv:4,use:{qingjiang:1,garlic:.15},sea:['oil','salt'],cook:'fresh',min:5,
+  reheat:'葉菜不耐放，每天現炒或現燙一份。',
+  steps:['青江菜一片片剝開洗乾淨，大的對切。','鍋熱油，蒜末炒香。','青江菜下鍋大火翻炒，加 1 大匙水。','菜梗變軟就加鹽起鍋。'],
+  tip:'梗比葉子難熟，可以梗先下、葉子後下。'},
+ {id:'douru_kongxin',n:'豆乳空心菜',roles:['veg'],lv:2,mem:1,sv:4,use:{kongxin:1,garlic:.15,chili:.2},sea:['furu','oil','sugar'],cook:'fresh',min:5,
+  reheat:'每天現炒一份。',
+  steps:['空心菜切段，梗和葉分開。豆腐乳 1 塊加一點醬汁和糖 1/2 小匙壓成泥。','鍋熱油，蒜和辣椒炒香，加豆腐乳醬炒 10 秒。','先下梗炒 30 秒，再下葉大火炒軟。'],
+  tip:'豆腐乳很鹹，不用再加鹽。'},
+ {id:'garlic_spinach',n:'蒜炒菠菜',roles:['veg'],lv:1,mem:1,sv:4,use:{spinach:1,garlic:.15},sea:['oil','salt'],cook:'fresh',min:5,
+  reheat:'每天現炒一份。',
+  steps:['菠菜切段洗乾淨，根部的泥要洗掉（根很甜，可以留著）。','鍋熱油，蒜片炒香。','菠菜大火炒 1 分鐘到軟，加鹽。'],
+  tip:'菠菜出水快，火要大、動作要快。'},
+ {id:'longxu',n:'涼拌龍鬚菜',roles:['veg'],lv:1,mem:1,sv:4,use:{longxu:1,garlic:.15},sea:['soy','vinegar','sesame_oil'],cook:'fresh',min:10,
+  reheat:'冰箱可放 2 天，直接冷吃。',
+  steps:['龍鬚菜摘掉老的部分，切段。','快煮鍋水滾，燙 1 分鐘撈起，泡冷水後擠乾。','醬油 1 大匙、醋 1 小匙、麻油 1 小匙、蒜末拌勻。'],
+  tip:'全部用你現有的調味料，第一週就能做。'},
+ {id:'blanch',n:'燙青菜',roles:['veg'],lv:1,mem:0,sv:4,use:{leafy:1},sea:['soy','sesame_oil'],cook:'fresh',min:5,
+  reheat:'每天晚上燙一份就好，快煮鍋 2 分鐘。',
+  steps:['青菜洗好切段。','快煮鍋水滾，加一點鹽和幾滴油（菜會比較綠）。','燙 1–2 分鐘撈起。','淋醬油 1 小匙、麻油幾滴。'],
+  tip:'備餐的日子最省事的青菜，一包可以吃四餐。'},
+ {id:'hongshao_fish',n:'紅燒魚',roles:['special'],lv:3,mem:1,sv:1,use:{fish:1,scallion:.3,ginger:.3,garlic:.1},sea:['soy','sugar','rice_wine','oil'],cook:'fresh',min:30,
+  reheat:'當天吃最好。',
+  steps:['魚用紙巾擦乾，兩面各劃 2–3 刀。','鍋要燒很熱再放 2 大匙油，魚下鍋後 3 分鐘不要動，搖鍋魚能滑動再翻面。','兩面都煎好後，旁邊放薑、蒜、蔥白爆香。','醬油 2、米酒 2、糖 1 大匙，加水半碗，煮滾後蓋鍋中小火 8 分鐘，中間舀醬汁淋魚。','開蓋收汁，放蔥綠。'],
+  tip:'魚皮會黏鍋，幾乎都是因為鍋不夠熱或太早翻。'},
+ {id:'shrimp_pasta',n:'蒜炒鮮蝦義大利麵',roles:['special'],lv:2,mem:1,sv:1,use:{pasta:.2,shrimp:.5,garlic:.3,chili:.3},sea:['oil','salt','pepper'],cook:'fresh',min:25,
+  reheat:'當天吃最好。',
+  steps:['蝦子退冰，剝殼、背部劃一刀去腸泥。蒜切片、辣椒切圈。','快煮鍋水滾加一大匙鹽，煮麵（照包裝時間減 1 分鐘），留半碗煮麵水。','平底鍋多一點油，小火慢煎蒜片到微金黃，放辣椒。','放蝦子中火煎到兩面變紅。','麵和半碗煮麵水下鍋，大火拌炒到醬汁包住麵，鹽和胡椒調味。'],
+  tip:'煮麵水裡的澱粉會讓油和水融合，麵才不會乾。'},
+ {id:'tomato_pasta',n:'爆量起司番茄義大利麵',roles:['special'],lv:2,mem:1,sv:1,use:{pasta:.2,tomato:.67,onion:.33,bacon:.5,cheese:.25,tomato_paste:.5},sea:['sugar','salt','oil'],cook:'fresh',min:30,
+  reheat:'醬可以先做好冷藏，麵當天煮。',
+  steps:['培根切小片，洋蔥切丁，番茄切丁。','快煮鍋煮麵（加鹽），留半碗煮麵水。','平底鍋煎培根到出油，放洋蔥炒軟。','加番茄和番茄糊 2 大匙，中火炒到番茄軟爛成醬，糖 1/2 小匙平衡酸味。','麵和煮麵水下鍋拌勻，關火鋪 3 片起司片，蓋鍋 1 分鐘讓起司融化。'],
+  tip:'你筆記裡的「番茄培根義大利麵」也是這道，加不加起司都可以。'},
+ {id:'beef_hotpot',n:'牛肉火鍋',roles:['special'],lv:1,mem:1,sv:1,use:{beef_hotpot:1,napa:.5,enoki:1,tofu:1,balls:1},sea:['soy'],cook:'fresh',min:20,
+  reheat:'現煮現吃。',
+  steps:['大白菜切大塊，豆腐切塊，金針菇撥開。','快煮鍋放大白菜和水，煮滾 5 分鐘出甜味當湯底。','放豆腐、火鍋料煮 3 分鐘。','金針菇、牛肉片最後放，肉片變色就能吃。','沾醬：醬油加蒜末、蔥花，有醋可以加一點。'],
+  tip:'你筆記寫「別鬧了，吃牛肉火鍋」，這次自己煮。白菜先煮就是最簡單的湯底。'},
+ {id:'sukiyaki',n:'壽喜燒',roles:['special'],lv:2,mem:0,sv:1,use:{beef_hotpot:1,onion:.33,napa:.3,tofu:.5,enoki:.5,egg:.1},sea:['soy','sugar','rice_wine'],cook:'fresh',min:20,
+  reheat:'現煮現吃。',
+  steps:['醬汁：醬油 3、米酒 3、糖 2 大匙、水 100ml。','平底鍋少許油，洋蔥炒軟。','倒醬汁，排進白菜、豆腐、金針菇，煮 5 分鐘。','牛肉片放上去燙熟。','蛋打散當沾醬（怕生蛋就直接打在鍋裡煮）。'],
+  tip:'和牛肉火鍋用一樣的食材，換個醬汁就是另一道。'},
+ {id:'scallion_noodle',n:'蔥油拌麵',roles:['special'],lv:1,mem:0,sv:1,use:{noodle:.25,scallion:.5,egg:.1},sea:['oil','soy','sugar'],cook:'fresh',min:20,
+  reheat:'蔥油可以一次做多一點，冰起來下次用。',
+  steps:['蔥切段，蔥白蔥綠分開。','平底鍋放 4 大匙油、蔥白，小火慢慢炸 5 分鐘，再放蔥綠炸到變深色。','關火，加醬油 2 大匙、糖 1 小匙，攪勻就是蔥油醬。','快煮鍋煮麵、順便煎一顆荷包蛋。','麵拌 2 大匙蔥油醬，放上蛋。'],
+  tip:'全程小火，蔥慢慢變焦香但不能變黑。'},
+ {id:'sesame_noodle',n:'麻醬麵',roles:['special'],lv:1,mem:0,sv:1,use:{noodle:.25,egg:.1,carrot:.2},sea:['sesame_paste','soy','vinegar','sugar','sesame_oil'],cook:'fresh',min:15,
+  reheat:'冷熱都好吃。',
+  steps:['芝麻醬 2 大匙、醬油 1、醋 1 小匙、糖 1/2 小匙、麻油幾滴，加 2 大匙溫水慢慢攪開。','紅蘿蔔刨絲，蛋煎成蛋皮切絲。','快煮鍋煮麵，撈起。','淋醬、放上紅蘿蔔絲和蛋絲拌勻。'],
+  tip:'芝麻醬要一點一點加水攪，才會滑順不結塊。'},
+ {id:'shrimp_egg',n:'滑蛋蝦仁',roles:['special'],lv:1,mem:0,sv:1,use:{shrimp_peeled:.5,egg:.3,scallion:.2},sea:['salt','oil'],cook:'fresh',min:15,
+  reheat:'當天吃最好。',
+  steps:['蝦仁退冰擦乾，3 顆蛋加一撮鹽和 1 大匙水打勻。','鍋熱油，蝦仁煎到變紅捲起，先盛起。','轉小火加一點油，倒蛋液，用鏟子從邊緣往中間推。','蛋還有一點流動時放回蝦仁，撒蔥花，馬上關火。'],
+  tip:'「滑」的關鍵是小火、蛋還沒全熟就關火，餘溫會讓它剛好。'},
+ {id:'pepper_shrimp',n:'胡椒蝦',roles:['special'],lv:2,mem:0,sv:1,use:{shrimp:.67,garlic:.3},sea:['butter','black_pepper','salt','rice_wine'],cook:'fresh',min:20,
+  reheat:'當天吃最好。',
+  steps:['蝦子退冰，剪掉鬚腳、背部剪開去腸泥，擦乾。','平底鍋放 1 大匙奶油和一點油，蝦子平鋪兩面煎紅。','放蒜末炒香。','米酒 1 大匙嗆一下，撒大量黑胡椒和一點鹽，大火翻炒到乾香。'],
+  tip:'蝦要擦乾再下鍋，殼才會酥香。'},
+ // 早餐（你筆記裡的吐司系列，沒有烤箱就用平底鍋）
+ {id:'egg_toast',n:'奶蛋吐司',roles:['bf'],lv:1,mem:1,sv:1,use:{toast:.25,egg:.1,milk:.1},sea:['butter','sugar'],cook:'pan',min:10,
+  steps:['蛋 1 顆加牛奶 3 大匙、糖少許打勻。','吐司兩面沾蛋奶液。','平底鍋小火融一點奶油，吐司兩面各煎 2 分鐘到金黃。'],tip:'平底鍋版本，不需要烤箱。'},
+ {id:'french_toast',n:'法式吐司',roles:['bf'],lv:1,mem:1,sv:1,use:{toast:.25,egg:.1,milk:.15},sea:['butter','sugar'],cook:'pan',min:15,
+  steps:['蛋 1 顆、牛奶 100ml、糖 1 小匙打勻。','吐司泡 1 分鐘讓它吸飽。','奶油小火慢煎，蓋鍋讓中間熟透，兩面金黃。'],tip:'和奶蛋吐司的差別是吐司泡得更久、口感像布丁。'},
+ {id:'bacon_toast',n:'培根蛋吐司',roles:['bf'],lv:1,mem:1,sv:1,use:{toast:.25,egg:.1,bacon:.25},sea:['mayo','pepper'],cook:'pan',min:10,
+  steps:['平底鍋煎培根到微脆。','用培根的油煎一顆荷包蛋。','吐司抹美乃滋，夾培根和蛋，撒胡椒。'],tip:'不用另外放油，培根自己會出油。'},
+ {id:'corn_toast',n:'起司玉米鮪魚吐司',roles:['bf'],lv:1,mem:1,sv:1,use:{toast:.25,corn_can:.25,tuna:.25,cheese:.08},sea:['mayo'],cook:'pan',min:10,
+  steps:['鮪魚瀝油，加玉米粒和美乃滋拌勻。','吐司鋪上餡料和起司片。','平底鍋小火、蓋鍋 3 分鐘讓起司融化。'],tip:'鮪魚玉米餡可以一次拌好冰著，吃 2–3 天。'},
+ {id:'rouzao',n:'電鍋肉燥',roles:['main'],lv:1,mem:0,sv:4,use:{mince:1,scallion:.3,garlic:.2,egg:.3},sea:['soy','sugar','rice_wine','pepper','oil'],cook:'pot',min:50,
+  reheat:'電鍋或微波，淋在飯上就是肉燥飯。',
+  steps:['蔥白切末、蒜切末。蛋冷水下鍋煮 8 分鐘，剝殼。','平底鍋少許油，蔥白和蒜末炒香，下絞肉炒到變白、鬆散。','加醬油 4、米酒 2、糖 1 大匙、胡椒粉，炒勻。','倒進電鍋內鍋，放水煮蛋，加水剛好蓋過。','外鍋 2 杯水，跳起來燜 15 分鐘。'],
+  tip:'絞肉炒的時候用鏟子一直壓散，肉燥才會細。'},
+ {id:'pepper_pork',n:'青椒炒肉絲',roles:['main'],lv:1,mem:0,sv:3,use:{pork_slice:1,bell_pepper:1,garlic:.1},sea:['soy','sugar','oil'],cook:'pan',min:15,
+  reheat:'微波 1 分半。',
+  steps:['肉片切絲，加醬油 1 大匙抓一下。青椒去籽切絲。','鍋熱油，肉絲大火炒到變色，先盛起。','原鍋炒蒜末和青椒 1 分鐘。','肉絲回鍋，醬油 1 大匙、糖 1/2 小匙，炒勻。'],
+  tip:'肉先起鍋最後再回鍋，才不會炒老。'},
+ {id:'kungpao',n:'宮保雞丁',roles:['main'],lv:2,mem:0,sv:3,use:{chicken_thigh:1,scallion:.5,garlic:.2,chili:.3},sea:['soy','sugar','vinegar','oil'],cook:'pan',min:25,
+  reheat:'微波 1 分半，很下飯。',
+  steps:['雞腿排切丁，加醬油 1 大匙抓勻。蔥切段，辣椒切段。','醬汁：醬油 2、醋 1、糖 1 大匙調好。','鍋熱油，雞丁煎到兩面金黃。','放蒜、辣椒、蔥白炒香。','倒醬汁大火炒到收汁，放蔥綠。有花生的話最後撒一把。'],
+  tip:'醬汁先調好再開火，才不會手忙腳亂。'},
+ {id:'mapo',n:'麻婆豆腐',roles:['main'],lv:2,mem:0,sv:3,use:{mince:.5,tofu:2,scallion:.3,garlic:.2},sea:['bean_paste','soy','oil'],cook:'pan',min:20,
+  reheat:'微波 1 分半，隔天更入味。',
+  steps:['豆腐切小方塊，蔥切花，蒜切末。','鍋熱油，絞肉炒到變白出油。','放蒜末和辣豆瓣醬 1 大匙，小火炒出紅油。','加水約 150ml、醬油 1 大匙，放豆腐，用推的不要用翻的，煮 5 分鐘。','撒蔥花。'],
+  tip:'豆腐用推的才不會碎。'},
+ {id:'salt_chicken',n:'蒜香鹽水雞',roles:['main'],lv:1,mem:0,sv:3,use:{chicken_breast:1,garlic:.2,scallion:.2,cucumber:.33},sea:['salt','pepper','sesame_oil'],cook:'pot',min:25,
+  reheat:'冷吃就好，夏天很適合。',
+  steps:['快煮鍋水滾，放雞胸肉和 1 小匙鹽，再滾後關火，蓋鍋燜 15 分鐘。','撈起放涼，用手撕成條。','小黃瓜拍裂切段。','加蒜末、蔥花、鹽、胡椒粉、麻油拌勻。'],
+  tip:'關火燜熟的雞胸肉不會柴，這招可以用一輩子。'},
+ {id:'oyakodon',n:'親子丼',roles:['special'],lv:2,mem:0,sv:1,use:{chicken_thigh:.5,onion:.33,egg:.2,scallion:.2},sea:['soy','sugar','rice_wine'],cook:'fresh',min:20,
+  reheat:'現煮最好吃，蛋要半熟。',
+  steps:['雞腿排切塊，洋蔥切絲。','平底鍋放醬油 2、米酒 2、糖 1 大匙、水 80ml，煮滾。','放洋蔥和雞肉，中火煮 6 分鐘到雞肉熟。','2 顆蛋稍微打散，分兩次繞圈倒進去，蓋鍋 30 秒就關火。','整鍋滑到白飯上，撒蔥花。'],
+  tip:'蛋不要打太散，分兩次下，才有滑嫩和半熟兩種口感。'},
+ {id:'clam_wine',n:'酒蒸蛤蠣',roles:['special'],lv:1,mem:0,sv:1,use:{clam:1,garlic:.2,basil:.5,chili:.2},sea:['rice_wine','salt','oil'],cook:'fresh',min:15,
+  reheat:'現煮現吃。',
+  steps:['冷凍蛤蠣不用退冰。蒜切片、辣椒切圈。','平底鍋少許油，蒜片和辣椒炒香。','放蛤蠣，倒米酒 3 大匙，蓋鍋中火 3–4 分鐘。','蛤蠣全開就放九層塔，試味道再決定要不要加鹽。'],
+  tip:'湯汁很鮮，可以拌麵或拌飯。'},
+ {id:'potsticker',n:'冰花煎餃',roles:['special'],lv:1,mem:0,sv:1,use:{dumplings:.4,scallion:.1},sea:['oil','soy','vinegar'],cook:'fresh',min:15,
+  reheat:'現煎現吃。',
+  steps:['平底鍋少許油，冷凍水餃不用退冰直接排好。','麵粉水：水 100ml 加 1 小匙太白粉或麵粉（沒有就只用水）。','倒進鍋裡，蓋鍋中火 8 分鐘。','開蓋讓水分收乾，底部變金黃脆皮。','醬油加醋當沾醬。'],
+  tip:'最省事的一餐，冷凍庫放一包，懶得煮的時候救命。'},
+ {id:'yaki_udon',n:'炒烏龍麵',roles:['special'],lv:1,mem:0,sv:1,use:{udon:.33,pork_slice:.3,cabbage:.2,carrot:.2},sea:['soy','sugar','oil'],cook:'fresh',min:15,
+  reheat:'現炒現吃。',
+  steps:['烏龍麵用熱水泡 1 分鐘撥散。高麗菜、紅蘿蔔切絲。','鍋熱油，肉片炒到變色。','放高麗菜和紅蘿蔔炒軟。','放烏龍麵，醬油 2 大匙、糖 1/2 小匙、水 2 大匙，大火拌炒到上色。'],
+  tip:'加水是為了讓麵不黏鍋，又能均勻上色。'},
+ {id:'clam_egg',n:'蛤蠣蒸蛋',roles:['side'],lv:1,mem:0,sv:2,use:{clam:.5,egg:.3,scallion:.1},sea:['salt','rice_wine'],cook:'pot',min:20,
+  reheat:'電鍋再蒸 3 分鐘。',
+  steps:['3 顆蛋加 1.5 倍蛋液量的水（約 230ml）、一撮鹽，打勻後用濾網過篩。','蛤蠣鋪在碗底，倒入蛋液。','碗口蓋一個盤子，放進電鍋，外鍋 1 杯水。','跳起來撒蔥花。'],
+  tip:'蓋盤子是蒸蛋表面平滑的秘密。'},
+ {id:'broccoli',n:'蒜炒綠花椰',roles:['side'],lv:1,mem:0,sv:3,use:{broccoli:1,garlic:.1,carrot:.2},sea:['oil','salt'],cook:'pan',min:15,
+  reheat:'微波 1 分鐘，放 3 天還是脆的。',
+  steps:['花椰菜切小朵，梗削皮切片。紅蘿蔔切片。','快煮鍋水滾，花椰菜和紅蘿蔔燙 1 分鐘撈起。','鍋熱油，蒜片炒香，放花椰菜大火炒 1 分鐘，加鹽。'],
+  tip:'先燙再炒，顏色才會綠、熟度一致。'},
+ {id:'fungus_egg',n:'木耳炒蛋',roles:['side'],lv:1,mem:0,sv:2,use:{fungus:1,egg:.3,garlic:.1,scallion:.2},sea:['salt','oil','soy'],cook:'pan',min:15,
+  reheat:'微波 1 分鐘。',
+  steps:['木耳切絲，蛋打散。','鍋熱油，蛋炒到半熟盛起。','炒蒜末和木耳 2 分鐘，加一點水。','蛋回鍋，鹽和一點醬油調味，撒蔥。'],
+  tip:'木耳很便宜又耐放，口感脆脆的。'},
+ {id:'seaweed_soup',n:'紫菜蛋花湯',roles:['side'],lv:1,mem:0,sv:3,use:{seaweed:.3,egg:.2,scallion:.2},sea:['salt','sesame_oil','pepper'],cook:'pot',min:10,
+  reheat:'快煮鍋重新煮滾。',
+  steps:['快煮鍋加水約 800ml 煮滾。','紫菜撕小片放進去，加鹽。','關小火，蛋液繞圈倒進去，等 10 秒再攪。','滴麻油、撒胡椒粉和蔥花。'],
+  tip:'10 分鐘的湯，只用你現有的調味料。'},
+ {id:'bean_sprout',n:'韭菜豆芽',roles:['veg'],lv:1,mem:0,sv:3,use:{bean_sprout:1,scallion:.3},sea:['oil','salt'],cook:'fresh',min:5,
+  reheat:'每天現炒一份。',
+  steps:['豆芽洗好瀝乾，蔥切段（有韭菜可以換韭菜）。','鍋燒很熱再放油，豆芽大火炒 1 分鐘。','放蔥段，加鹽，馬上起鍋。'],
+  tip:'豆芽要大火快炒才會脆，炒太久會出水。'},
+ {id:'danbing',n:'蔥花蛋餅',roles:['bf'],lv:1,mem:0,sv:1,use:{egg_wrap:.1,egg:.1,scallion:.1},sea:['oil','soy'],cook:'pan',min:8,
+  steps:['蛋打散，加蔥花和一撮鹽。','平底鍋少許油中火，倒蛋液，馬上把冷凍蛋餅皮蓋上去。','蛋凝固後翻面煎 1 分鐘，捲起來切段，沾醬油。'],tip:'蛋餅皮不用退冰，直接下鍋。'},
+ {id:'cheese_danbing',n:'起司玉米蛋餅',roles:['bf'],lv:1,mem:0,sv:1,use:{egg_wrap:.1,egg:.1,cheese:.08,corn_can:.15},sea:['oil'],cook:'pan',min:8,
+  steps:['蛋打散，倒進熱鍋，蓋上蛋餅皮。','翻面後鋪起司片和玉米粒。','捲起來壓一下讓起司融化，切段。'],tip:'跟蔥花蛋餅同一個做法，換餡料就是新口味。'},
+ {id:'oats',n:'隔夜燕麥',roles:['bf'],lv:1,mem:0,sv:1,use:{oats:.1,milk:.2,banana:.2},sea:[],cook:'cold',min:5,
+  steps:['前一晚：燕麥 4 大匙加鮮奶 150ml（用豆漿也可以）放進保鮮盒。','放上香蕉片，蓋好冰一晚。','早上直接吃，想吃熱的就微波 1 分鐘。'],tip:'完全不用開火，前一晚 3 分鐘弄好。'},
+ {id:'sweetpotato',n:'電鍋地瓜配水煮蛋',roles:['bf'],lv:1,mem:0,sv:1,use:{sweet_potato:.25,egg:.2},sea:[],cook:'pot',min:5,
+  steps:['地瓜洗乾淨，和 2 顆蛋一起放進電鍋。','外鍋 1 杯水，跳起來後燜 10 分鐘。','一次蒸 3–4 天份，冰起來，早上微波就能吃。'],tip:'一次蒸好幾天份，早上最省時間。'},
+ {id:'ham_sandwich',n:'火腿蛋三明治',roles:['bf'],lv:1,mem:0,sv:1,use:{toast:.25,egg:.1,ham:.25,cheese:.08},sea:['mayo'],cook:'pan',min:10,
+  steps:['平底鍋煎火腿和一顆荷包蛋。','吐司抹美乃滋，夾火腿、蛋、起司。','對切。想吃熱的，吐司也下鍋煎一下。'],tip:'前一晚把火腿和蛋煎好冰著，早上組合就好。'},
+ {id:'tuna_onigiri',n:'鮪魚飯糰',roles:['bf'],lv:1,mem:0,sv:1,use:{tuna:.33},sea:['mayo','salt'],cook:'cold',min:10,
+  steps:['鮪魚瀝油，加美乃滋拌勻。','手沾一點鹽水，抓一碗飯，中間包鮪魚餡捏緊。','用保鮮膜包好冰起來，早上微波 40 秒。'],tip:'用備餐煮的白飯，順手多捏幾顆。'},
+ // 備用新菜：按「加入新菜」時，如果沒辦法請 Claude 想新菜，就從這裡解鎖
+ {id:'onion_egg',extra:1,n:'洋蔥炒蛋',roles:['side'],lv:1,mem:0,sv:2,use:{onion:.67,egg:.3},sea:['salt','oil','soy'],cook:'pan',min:10,
+  reheat:'微波 1 分鐘，洋蔥越放越甜。',
+  steps:['洋蔥切絲，蛋打散。','鍋熱油，蛋炒到半熟盛起。','洋蔥中火炒到軟、微微變透明，大約 4 分鐘。','蛋回鍋，鹽和一點醬油調味。'],
+  tip:'洋蔥很便宜又耐放，是備餐的好朋友。'},
+ {id:'garlic_pork',extra:1,n:'蒜泥白肉',roles:['main'],lv:1,mem:0,sv:3,use:{pork_belly:1,garlic:.3,cucumber:.33},sea:['soy','sugar','vinegar','sesame_oil'],cook:'pot',min:20,
+  reheat:'冷吃就好，醬汁吃之前再淋。',
+  steps:['快煮鍋水滾，五花肉片一片片燙熟（變白就撈），泡冰水。','小黃瓜刨薄片鋪底。','醬汁：蒜泥 1 大匙、醬油 2、糖 1 小匙、醋 1 小匙、麻油幾滴。','肉片鋪在小黃瓜上，吃之前淋醬。'],
+  tip:'夏天不想開火時的備餐菜，全部用你有的調味料加糖。'},
+ {id:'potato_pork',extra:1,n:'馬鈴薯燉肉',roles:['main'],lv:2,mem:0,sv:3,use:{pork_slice:1,potato:.67,onion:.67,carrot:.5},sea:['soy','sugar','rice_wine','oil'],cook:'pot',min:35,
+  reheat:'電鍋或微波，隔天更入味。',
+  steps:['馬鈴薯、紅蘿蔔切塊，洋蔥切瓣。','快煮鍋少許油，肉片炒到變色，放洋蔥炒軟。','放馬鈴薯和紅蘿蔔，加水剛好蓋過，醬油 3、米酒 2、糖 1 大匙。','煮滾撈浮沫，小火 20 分鐘，最後開蓋收汁到剩一點湯。'],
+  tip:'日本媽媽的家常菜，馬鈴薯邊緣微微煮化最好吃。'},
+ {id:'kimchi_rice',extra:1,n:'泡菜炒飯',roles:['special'],lv:1,mem:0,sv:1,use:{kimchi:.3,pork_slice:.3,egg:.1,scallion:.2},sea:['soy','sesame_oil','oil'],cook:'fresh',min:15,
+  reheat:'用備餐剩下的冷飯做最好。',
+  steps:['泡菜切小塊，肉片切小。','鍋熱油，肉炒到變色，放泡菜炒 1 分鐘。','放一碗冷飯壓散炒勻，醬油 1 小匙沿鍋邊下。','另外煎一顆荷包蛋放上去，滴麻油、撒蔥花。'],
+  tip:'冷飯比剛煮好的飯更適合炒，粒粒分明。'},
+ {id:'sacha_beef',extra:1,n:'沙茶炒牛肉',roles:['special'],lv:2,mem:0,sv:1,use:{beef_hotpot:1,onion:.33,kongxin:.5,garlic:.1},sea:['sacha','soy','oil'],cook:'fresh',min:15,
+  reheat:'當天吃最好。',
+  steps:['牛肉片用醬油 1 小匙、一點油抓一下。空心菜切段，洋蔥切絲。','鍋熱油，牛肉大火快炒到 7 分熟先盛起。','蒜和洋蔥炒香，加沙茶醬 1 大匙。','空心菜下鍋炒軟，牛肉回鍋拌 10 秒就起鍋。'],
+  tip:'牛肉炒太久會硬，先起鍋最後再回鍋。'},
+ {id:'cucumber',extra:1,n:'涼拌小黃瓜',roles:['side'],lv:1,mem:0,sv:3,use:{cucumber:1,garlic:.1,chili:.2},sea:['salt','vinegar','sugar','sesame_oil'],cook:'fresh',min:10,
+  reheat:'冷吃，冰箱放 3 天會越來越入味。',
+  steps:['小黃瓜用刀背拍裂，切段。','撒 1 小匙鹽抓勻，放 10 分鐘，倒掉出來的水。','加蒜末、辣椒、醋 1 大匙、糖 1 小匙、麻油幾滴拌勻。'],
+  tip:'先用鹽殺水，小黃瓜才會脆，醬汁也不會被稀釋。'},
+ {id:'sweet_sour_chicken',extra:1,n:'糖醋雞丁',roles:['main'],lv:2,mem:0,sv:3,use:{chicken_thigh:1,onion:.33,bell_pepper:.5},sea:['ketchup','sugar','vinegar','soy','oil'],cook:'pan',min:25,
+  reheat:'微波 1 分半。',
+  steps:['雞腿排切丁，醬油 1 大匙抓勻。洋蔥、青椒切塊。','醬汁：番茄醬 3、醋 2、糖 1.5、水 3 大匙。','鍋熱油，雞丁煎到金黃。','放洋蔥和青椒炒 1 分鐘。','倒醬汁煮到濃稠，均勻裹住雞丁。'],
+  tip:'糖醋的比例記住「番茄醬 3：醋 2：糖 1.5」就不會失敗。'},
+ {id:'dry_beans',extra:1,n:'乾煸四季豆',roles:['side'],lv:2,mem:0,sv:3,use:{green_bean:1,mince:.3,garlic:.2},sea:['soy','sugar','oil'],cook:'pan',min:20,
+  reheat:'微波 1 分鐘。',
+  steps:['四季豆撕掉兩邊的筋，切段，一定要擦乾。','鍋裡多一點油，中火把四季豆煎到表皮起皺，盛起。','原鍋炒絞肉和蒜末到乾香。','四季豆回鍋，醬油 1 大匙、糖 1/2 小匙炒勻。'],
+  tip:'四季豆要擦乾，下鍋才不會噴油。'},
+ {id:'fried_bihun',extra:1,n:'台式炒米粉',roles:['special'],lv:2,mem:0,sv:2,use:{rice_noodle:.5,pork_slice:.4,cabbage:.3,carrot:.4,mushroom:1},sea:['soy','pepper','oil'],cook:'fresh',min:25,
+  reheat:'電鍋或微波，加一點水比較不會乾。',
+  steps:['米粉泡冷水 15 分鐘到軟。肉片、高麗菜、紅蘿蔔切絲。','鍋熱油，肉絲炒到變色，加鴻喜菇、紅蘿蔔、高麗菜炒軟。','加水約 200ml、醬油 3 大匙、胡椒粉，煮滾。','放米粉，用筷子一直挑鬆，炒到湯汁被吸乾。'],
+  tip:'用筷子挑比用鏟子翻好，米粉才不會斷。'},
+ {id:'miso_soup',extra:1,n:'味噌豆腐湯',roles:['side'],lv:1,mem:0,sv:3,use:{tofu:1,scallion:.2,seaweed:.2},sea:['miso'],cook:'pot',min:10,
+  reheat:'快煮鍋加熱，不要滾太久。',
+  steps:['快煮鍋加水約 800ml，放豆腐丁和紫菜煮滾。','關火，味噌 2 大匙用湯勺加一點湯先化開，再倒回鍋裡。','撒蔥花。'],
+  tip:'味噌煮滾會變酸、香氣也會跑掉，一定要關火再放。'},
+ {id:'butter_mushroom',extra:1,n:'奶油醬油菇',roles:['side'],lv:1,mem:0,sv:2,use:{mushroom:2,garlic:.1},sea:['butter','soy'],cook:'pan',min:10,
+  reheat:'微波 1 分鐘。',
+  steps:['鴻喜菇切掉根部撥散。','平底鍋放 1 小塊奶油，菇不要翻，先煎 2 分鐘到上色。','放蒜末翻炒，最後沿鍋邊淋醬油 1 小匙。'],
+  tip:'菇類先煎不翻，才會香而不是出水。'},
+ {id:'tomato_chicken',extra:1,n:'番茄燉雞',roles:['main'],lv:1,mem:0,sv:3,use:{chicken_drum:1,tomato:1,onion:.67},sea:['salt','sugar','oil'],cook:'pot',min:40,
+  reheat:'電鍋或微波，湯汁可以拌飯。',
+  steps:['番茄切塊，洋蔥切丁。','快煮鍋少許油，雞肉煎到表面金黃。','放洋蔥炒軟，再放番茄炒到出汁。','加水剛好蓋過，煮滾後小火 25 分鐘。','鹽和糖 1 小匙調味。'],
+  tip:'番茄炒越久越甜，湯汁會變濃。'},
+];
+
+// 每道菜的兩個變化版：第 3 次和第 5 次解鎖
+const VARS = {
+ sanbei:['杏鮑菇三杯：雞肉換一半杏鮑菇，同一個醬汁用在不同食材','三杯豆腐：換主角，自己判斷醬汁比例要不要調'],
+ porkchop:['醃好拍一層太白粉再煎，外酥內嫩','豬排蓋飯：煎好切條，洋蔥加醬油糖水煮滾，倒蛋液蓋上'],
+ chicken_pan:['醃料加蒜泥和黑胡椒，做出蒜香版','只用鹽和胡椒，煎好擠檸檬，練習靠火候取勝'],
+ teriyaki:['照燒醬加洋蔥絲一起煮，變成照燒雞腿丼','同一個照燒醬，換到豬肉片上'],
+ ginger_pork:['加高麗菜絲一起炒，一盤有肉有菜','豬肉片捲金針菇，再淋同樣的醬汁'],
+ huiguo:['加青椒或洋蔥，練習判斷哪些菜要先下','不看食譜，憑感覺調一次豆瓣醬的辣度'],
+ hakka:['加泡軟的乾魷魚，做完整版客家小炒','所有料先備好，挑戰 30 秒內大火炒完'],
+ radish_pork:['蘿蔔換成馬鈴薯，或一起放幾顆水煮蛋','加八角 1 顆，做出更有滷味香的版本'],
+ braised:['滷汁加一顆八角或一點五香粉','肉切小丁，就是滷肉飯'],
+ curry:['加半顆蘋果泥或一匙蜂蜜，做甜一點的咖哩','剩下的咖哩加水煮開，放烏龍麵就是咖哩烏龍'],
+ sesame_chicken:['加金針菇和高麗菜，變成麻油雞火鍋','湯拿來煮麵線，就是麻油雞麵線'],
+ kimchi_pot:['加一包泡麵，變成部隊鍋','肉換成蝦子和蛤蠣，做海鮮泡菜鍋'],
+ tomato_egg:['加番茄醬 1 大匙，湯汁更濃、顏色更紅','做成番茄蛋花湯，或拿來拌麵'],
+ basil_egg:['加辣椒和蒜末，變成塔香辣炒蛋','九層塔換成蔥花，就是蔥花蛋'],
+ carrot_egg:['紅蘿蔔換成高麗菜絲或洋蔥絲','加黑胡椒和起司，做成西式炒蛋'],
+ cabbage_garlic:['加幾片五花肉，變成肉炒高麗菜','試試看蝦醬炒高麗菜'],
+ cabbage_shrimp:['加一點蝦米一起爆香','同一個做法換成空心菜'],
+ napa_stew:['加蝦米和香菇，更香的台式白菜滷','加豆皮一起滷'],
+ radish_rib:['加玉米或紅蘿蔔，湯更甜','排骨換雞腿塊，做蘿蔔雞湯'],
+ corn_rib:['加山藥一起煮','排骨換雞骨架，練習自己熬雞高湯'],
+ borscht:['肉換成牛肋條，做正統一點的版本','起鍋前加一小塊奶油，湯更香濃'],
+ tofu_soup:['加一把金針菇或小白菜','勾一點薄芡再加醋和胡椒，變成酸辣湯'],
+ qingjiang:['用蠔油取代鹽，做蠔油青江菜','同一個做法套用到小白菜、高麗菜苗'],
+ douru_kongxin:['換成沙茶空心菜','豆腐乳醬拿去炒高麗菜'],
+ garlic_spinach:['加一點小魚乾一起炒','燙菠菜淋芝麻醬，做成日式涼拌'],
+ longxu:['加一點辣油，做成麻辣涼拌','同一個醬汁套用到秋葵或四季豆'],
+ blanch:['淋肉燥或油蔥酥','換成蒜蓉醬油：蒜末加醬油加一點糖'],
+ hongshao_fish:['改做乾煎魚：只抹鹽，煎到兩面金黃','醬汁加辣豆瓣醬，變成豆瓣魚'],
+ shrimp_pasta:['用米酒或白酒嗆一下鍋，香氣更足','加蛤蠣，變成海鮮義大利麵'],
+ tomato_pasta:['加鮮奶 50ml，變成粉紅醬','培根換成雞腿丁或蝦仁'],
+ beef_hotpot:['湯底換成番茄：先煮番茄和洋蔥 10 分鐘','湯底換成昆布，做清爽的日式鍋'],
+ sukiyaki:['最後加烏龍麵吸光醬汁','牛肉換成豬梅花片，做豬肉壽喜燒'],
+ scallion_noodle:['加一顆溏心蛋','蔥油一次做一罐，下次拌麵拌飯都能用'],
+ sesame_noodle:['加辣油和花椒粉，變成川味麻醬麵','加小黃瓜絲和雞絲，變成涼麵'],
+ shrimp_egg:['蛋液加一點牛奶，口感更滑','加番茄丁，變成番茄蝦仁炒蛋'],
+ pepper_shrimp:['蝦換成雞翅，做胡椒雞翅','最後擠一點檸檬汁'],
+ egg_toast:['加一片起司','加香蕉片或蜂蜜，做甜的版本'],
+ french_toast:['淋蜂蜜或撒一點肉桂粉','鹹法式吐司：不加糖，夾火腿起司'],
+ bacon_toast:['加生菜和番茄，就是早餐店總匯','培根換火腿或鮪魚'],
+ corn_toast:['餡料加洋蔥丁增加口感','用平底鍋壓著煎，做熱壓吐司'],
+ onion_egg:['加一點番茄醬','加培根丁'],
+ garlic_pork:['醬汁加辣油','肉片換成雞胸肉，做口水雞'],
+ potato_pork:['加蒟蒻絲','肉片換成牛肉片'],
+ kimchi_rice:['蓋一片起司再蓋鍋燜融','加鮪魚罐頭'],
+ sacha_beef:['空心菜換成高麗菜','牛肉換成豬肉片'],
+ cucumber:['加木耳一起涼拌','加一點蒜油和辣油'],
+ danbing:['蛋液加一點九層塔','加一片起司和火腿'],
+ cheese_danbing:['加鮪魚','加培根'],
+ oats:['香蕉換成蘋果丁或藍莓','加一匙花生醬'],
+ sweetpotato:['地瓜換成玉米','做溏心蛋：外鍋半杯水，跳起來馬上泡冰水'],
+ ham_sandwich:['加生菜和番茄','火腿換成鮪魚玉米'],
+ tuna_onigiri:['飯裡拌一點醬油和麻油','餡料換成肉鬆或滷肉'],
+ rouzao:['加香菇丁一起滷，更香','加豆干丁，做成肉燥豆干'],
+ pepper_pork:['青椒換成洋蔥或高麗菜','肉絲換成牛肉絲，做青椒牛肉'],
+ kungpao:['最後加一把花生','雞丁換成蝦仁，做宮保蝦仁'],
+ mapo:['起鍋前加一點花椒粉，更麻','加一把青菜一起燒'],
+ salt_chicken:['加一點檸檬汁','醬汁換成蒜泥醬油，做成口水雞'],
+ oyakodon:['雞肉換成豬肉片，就是他人丼','加一片起司'],
+ clam_wine:['加一小塊奶油，變成奶油蛤蠣','湯汁拿去拌義大利麵'],
+ potsticker:['煎好打一顆蛋進去，做抱蛋煎餃','水餃換成煮的，配紫菜蛋花湯'],
+ yaki_udon:['加一顆荷包蛋','肉片換成蝦仁'],
+ clam_egg:['蛤蠣換成蝦仁','蛋液加一點高湯或柴魚'],
+ broccoli:['加蝦仁一起炒','改淋一點蠔油'],
+ fungus_egg:['加肉絲一起炒','木耳換成紅蘿蔔絲'],
+ seaweed_soup:['加豆腐丁','加一點蝦米'],
+ bean_sprout:['加一點肉絲','炒好淋一點醋，更爽口'],
+ sweet_sour_chicken:['雞丁換成排骨，做糖醋排骨','加鳳梨塊'],
+ dry_beans:['加一點辣椒','四季豆換成杏鮑菇'],
+ fried_bihun:['加蝦米一起炒','米粉換成冬粉'],
+ miso_soup:['加蛤蠣','加鮭魚丁'],
+ butter_mushroom:['加培根丁','菇換成杏鮑菇片'],
+ tomato_chicken:['加馬鈴薯塊','起鍋前加一點起司'],
+};
+const VAR_DEFAULT=['照自己的口味調整一次調味，記下你喜歡的比例','把主食材換一樣，用同樣的方法再做一次'];
+const varsOf=r=>VARS[r.id]||r.vars||VAR_DEFAULT;
+
+let RX = {}, ACTIVE = [];
+function rebuild(S){
+  for (const [k,v] of Object.entries(S.customIng||{})) if(!ING[k]) ING[k]=v;
+  ACTIVE = [...R.filter(r=>!r.extra || (S.unlocked||[]).includes(r.id)), ...(S.custom||[])];
+  RX = Object.fromEntries([...R,...(S.custom||[])].map(r=>[r.id,r]));
+}
+const ROLE_LABEL = {main:'主菜',side:'配菜',veg:'青菜',bf:'早餐'};
+// 每次開伙：兩道主菜＋一道配菜或湯＋一道青菜。蝦、火鍋、麵這類「特別」的菜也算主菜
+const SLOTS=['main1','main2','side','veg'];
+const SLOT_ROLE={main1:'main',main2:'main',side:'side',veg:'veg'};
+const ROLES=SLOTS;
+const fitsRole=(r,role)=> role==='main' ? (r.roles.includes('main')||r.roles.includes('special')) : r.roles.includes(role);
+const PROTEIN = ['pork_slice','pork_belly','pork_chop','pork_block','ribs','chicken_thigh','chicken_drum','beef_hotpot','shrimp','shrimp_peeled','fish'];
+
+// 熟練度：煮 1 次新手、3 次還算會做、5 次拿手菜
+const STAGES=[
+  {n:'還沒煮過',d:'完全不會'},
+  {n:'新手',d:'照著食譜做'},
+  {n:'還算會做',d:'偶爾看一下食譜'},
+  {n:'拿手菜',d:'不用看食譜'},
+];
+const MASTER=5;
+const stageOf=c=> c<=0?0 : c<3?1 : c<MASTER?2 : 3;
+const nextStageAt=c=> c<1?1 : c<3?3 : c<MASTER?MASTER : null;
+function challengeFor(r,n){
+  const v=varsOf(r);
+  if(n<=1) return {k:'第 1 次',t:'完全照食譜做，邊做邊看就好。'};
+  if(n===2) return {k:'第 2 次',t:'開始前把步驟讀一遍，做的時候試著少看幾次。'};
+  if(n===3) return {k:'第 3 次・解鎖變化版',t:v[0]};
+  if(n===4) return {k:'第 4 次・不看步驟',t:'只看食材清單就開始做，卡住再偷看。'};
+  if(n===5) return {k:'第 5 次・拿手挑戰',t:v[1]};
+  return {k:'拿手菜',t:'自由發揮，或挑一個變化版再做一次。'};
+}
+
+function defaultState(){
+  return {
+    v:2,
+    settings:{budget:1200, meals:8, maxNewSea:2, soy:3, soyPrice:38, fruit:150, rice:60, breakfast:false, motion:true},
+    owned:[...START_OWNED],
+    prices:{},
+    progress:{},   // id -> {c: 煮過幾次, last: 'YYYY-MM-DD'}
+    lastWeek:[],
+    unlocked:[], custom:[], customIng:{}, lastUpdate:null,
+    pantry:{},
+    weekLog:[],   // 這週按過「煮好了」的菜
+    seaWeek:[],   // 這週買的調味料
+    today:null,
+    plan:null,
+    checked:{},
+  };
+}
+function price(S,id){ return S.prices[id] ?? ING[id][2]; }
+function prepMeals(S){ const m=Math.max(4,Math.min(14,Math.round(S.settings.meals)||8)); return [Math.ceil(m/2),Math.floor(m/2)]; }
+const cooked=(S,id)=>(S.progress[id]?.c)||0;
+function userLevel(S){
+  const ok = Object.values(S.progress).filter(p=>p.c>=3).length;
+  return Math.min(3, 1 + Math.floor(ok/4));
+}
+function weight(S,r){
+  const lvl = userLevel(S);
+  if (r.lv > lvl+1) return 0;
+  const c = cooked(S,r.id);
+  let w = c===0 ? (r.mem?3:1.7) : c<MASTER ? 3.2 : 1.2;
+  if (r.lv===lvl+1 && c===0) w *= .6;
+  if (S.lastWeek.includes(r.id)) w *= .5;
+  return w;
+}
+// 每一餐 = 主食 + 主菜 + 配菜 + 青菜；兩道主菜各煮一半份量
+function slotServings(S,si,slot){ const n=prepMeals(S)[si]; return slot==='main1'?Math.ceil(n/2) : slot==='main2'?Math.floor(n/2) : n; }
+
+function planIds(plan){
+  const ids=[]; plan.sessions.forEach(s=>ROLES.forEach(r=>s[r]&&ids.push(s[r])));
+  if(plan.bf) ids.push(...plan.bf);
+  return ids;
+}
+// 一週買一次菜
+function shopping(S, plan){
+  const need={}, users={};
+  const add=(rid,mult)=>{ const r=RX[rid]; for(const [k,q] of Object.entries(r.use)){ need[k]=(need[k]||0)+q*mult; (users[k]=users[k]||new Set()).add(r.n); } };
+  plan.sessions.forEach((s,si)=>{ for(const k of SLOTS) if(s[k]) add(s[k], slotServings(S,si,k)/RX[s[k]].sv); });
+  if(plan.bf) plan.bf.forEach((rid,i)=>add(rid,(i===0?4:3)/RX[rid].sv));
+  const pantry=S.pantry||{};
+  let food=0, waste=0, pantryUse=0; const leftover={};
+  const items=Object.keys(need).map(k=>{
+    const have=keeps(k)?(pantry[k]||0):0, short=need[k]-have;
+    const packs= short<=0.05 ? 0 : Math.ceil(short-0.05);
+    const pr=price(S,k), left=Math.max(0,have+packs-need[k]);
+    // 吃掉的價值：放得久的照用量算，放不久的買了就算
+    if(keeps(k)){ food+=need[k]*pr; if(left>=0.1) leftover[k]=+left.toFixed(2); } else { food+=packs*pr; waste+=left*pr; }
+    pantryUse+=Math.min(have,need[k])*pr;
+    return {id:k, need:need[k], have, packs, cost:packs*pr, left, users:[...users[k]]};
+  });
+  for(const [k,v] of Object.entries(pantry)) if(!need[k]&&ING[k]&&keeps(k)) leftover[k]=v;
+  const seaSet=new Set(); for(const rid of planIds(plan)) RX[rid].sea.forEach(x=>{ if(!S.owned.includes(x)||(S.seaWeek||[]).includes(x)) seaSet.add(x); });
+  const newSea=[...seaSet].map(id=>({id,cost:SEA[id][1]}));
+  const st=S.settings;
+  const fixed=[{id:'_soy',n:'無糖豆漿',qty:st.soy,cost:st.soy*st.soyPrice},{id:'_fruit',n:'水果',qty:1,cost:st.fruit},{id:'_rice',n:'米（平均每週）',qty:1,cost:st.rice}].filter(f=>f.cost>0);
+  const fix=fixed.reduce((a,b)=>a+b.cost,0), sea=newSea.reduce((a,b)=>a+b.cost,0);
+  food=Math.round(food);
+  const cash=items.reduce((a,b)=>a+b.cost,0)+fix+sea;
+  return {items,newSea,fixed,food,fix,sea,total:food+fix+sea,cash,waste,pantryUse,leftover,shared:items.filter(i=>i.users.length>=2).length};
+}
+function scorePlan(S,plan){
+  const sh=shopping(S,plan);
+  if (sh.newSea.length > S.settings.maxNewSea) return {score:-1e9,sh};
+  let ws=0; for(const id of planIds(plan)) ws+=weight(S,RX[id]);
+  const over=sh.total-S.settings.budget;
+  const pen=(over>0?over*1.5:Math.max(0,-over-150)*.2) + Math.max(0,sh.cash-S.settings.budget)*.5;
+  let rep=0;
+  const prot=id=>Object.keys(RX[id].use).find(k=>PROTEIN.includes(k))||'none';
+  const mains=plan.sessions.flatMap(s=>[s.main1,s.main2]);
+  const ps=mains.map(prot);
+  for(let i=0;i<4;i++) for(let j=i+1;j<4;j++) if(ps[i]===ps[j]&&ps[i]!=='none') rep+=(Math.floor(i/2)===Math.floor(j/2))?14:6;
+  for (const s of plan.sessions){ const sp=prot(s.side); if(sp!=='none'&&(sp===prot(s.main1)||sp===prot(s.main2))) rep+=12; }
+  // 特別的菜（蝦、火鍋、麵）每週一到兩道
+  const special=mains.filter(id=>RX[id].roles.includes('special')).length;
+  if(special===0) rep+=15; if(special>2) rep+=(special-2)*10;
+  for (const s of plan.sessions) if(RX[s.main1].roles.includes('special')&&RX[s.main2].roles.includes('special')) rep+=10;
+  for (const k of ['pasta','noodle','beef_hotpot','shrimp']) if(mains.filter(id=>RX[id].use[k]).length>1) rep+=8;
+  return {score: ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5, sh};
+}
+function pick(S,role,exclude,rnd){
+  const pool=ACTIVE.filter(r=>fitsRole(r,SLOT_ROLE[role]||role)&&!exclude.has(r.id)).map(r=>[r,weight(S,r)]).filter(x=>x[1]>0);
+  let t=pool.reduce((a,b)=>a+b[1],0)*rnd();
+  for(const [r,w] of pool){ t-=w; if(t<=0) return r.id; }
+  return pool.length?pool[pool.length-1][0].id:null;
+}
+function randomPlan(S,base,rnd){
+  const used=new Set(), locks=base?.locks||{};
+  const plan={sessions:[{},{}],locks:{...locks},bf:null};
+  for(let si=0;si<2;si++) for(const role of ROLES){
+    const k=si+'.'+role; if(locks[k]&&base.sessions[si][role]&&RX[base.sessions[si][role]]){ plan.sessions[si][role]=base.sessions[si][role]; used.add(base.sessions[si][role]); }
+  }
+  for(let si=0;si<2;si++) for(const role of ROLES){
+    if(plan.sessions[si][role]) continue;
+    const id=pick(S,role,used,rnd); plan.sessions[si][role]=id; used.add(id);
+  }
+  if(S.settings.breakfast){ const a=pick(S,'bf',used,rnd); used.add(a); plan.bf=[a,pick(S,'bf',used,rnd)]; }
+  return plan;
+}
+function generate(S,base,rnd=Math.random,tries=600){
+  const cands=[];
+  for(let i=0;i<tries;i++){ const p=randomPlan(S,base,rnd); const {score}=scorePlan(S,p); if(score>-1e8) cands.push([score,p]); }
+  if(!cands.length) return randomPlan(S,base,rnd);
+  cands.sort((a,b)=>b[0]-a[0]);
+  const top=cands.slice(0,6);
+  return top[Math.floor(rnd()*top.length)][1];
+}
+function rerollSlot(S,plan,si,role,rnd=Math.random){
+  const cur=plan.sessions[si][role], used=new Set(planIds(plan));
+  const opts=ACTIVE.filter(r=>fitsRole(r,SLOT_ROLE[role]||role)&&!used.has(r.id)&&weight(S,r)>0).map(r=>{
+    const p=JSON.parse(JSON.stringify(plan)); p.sessions[si][role]=r.id;
+    return [scorePlan(S,p).score + rnd()*25, r.id];
+  }).filter(x=>x[0]>-1e8).sort((a,b)=>b[0]-a[0]);
+  if(!opts.length) return cur;
+  const top=opts.slice(0,4);
+  return top[Math.floor(rnd()*top.length)][1];
+}
+//#core-end
+
+// ---------- 狀態與儲存
+let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
+const LS_KEY='kaihuo-wheel-v2';
+function loadLocal(){ try{ const t=localStorage.getItem(LS_KEY)||localStorage.getItem('weekly-kitchen-v1'); return t?JSON.parse(t):null; }catch(e){ return null; } }
+function merge(d){
+  const base=defaultState(); const m={...base,...d,settings:{...base.settings,...(d.settings||{})}};
+  for(const [k,p] of Object.entries(m.progress||{})) m.progress[k]={c:p.c||0,last:p.last||null};
+  return m;
+}
+function setSync(t){ $('#sync').textContent=t; }
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){ setSync('這個瀏覽器沒辦法存紀錄，請不要用無痕模式'); }
+}
+function iso(d){ const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
+function ensurePlan(){ if(!S.plan||!S.plan.sessions.every(s=>ROLES.every(r=>RX[s[r]]))){ S.plan=generate(S,null); S.checked={}; } }
+
+// ---------- 小工具
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>'NT$ '+Math.round(n).toLocaleString('en-US');
+const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function pips(c,lg){ const f=Math.min(c,MASTER); return `<span class="pips ${c>=MASTER?'gold':''} ${lg?'lg':''}" aria-label="煮過 ${c} 次">${Array.from({length:MASTER},(_,i)=>`<i class="${i<f?'f':''}"></i>`).join('')}</span>`; }
+function badge(c){ const s=stageOf(c); return `<span class="badge st${s}">${STAGES[s].n}</span>`; }
+function toast(t){ const el=document.createElement('div'); el.className='toast'; el.textContent=t; $('#toastRoot').replaceChildren(el); setTimeout(()=>el.remove(),2400); }
+function dishCost(rid,serv){ const r=RX[rid]; let c=0; for(const [k,q] of Object.entries(r.use)) c+=q*serv/r.sv*price(S,k); return Math.round(c); }
+
+// ---------- 轉盤
+const wheel={rot:0, items:[], label:'按下面\n開始抽', cv:'#wheel', hub:'#hub'};
+const wheel2={rot:0, items:[], label:'今天\n吃什麼', cv:'#wheel2', hub:'#hub2'};
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function drawWheel(items,label,W=wheel){
+  const cv=$(W.cv); if(!cv) return;
+  W.items=items; if(label!==undefined) W.label=label;
+  const size=cv.clientWidth||280, dpr=window.devicePixelRatio||1;
+  cv.width=size*dpr; cv.height=size*dpr;
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const r=size/2, N=Math.max(items.length,1), a=Math.PI*2/N;
+  const fills=['--tomato-soft','--yolk-soft','--leaf-soft','--sky-soft'].map(cssVar);
+  const edge=cssVar('--surface'), ink=cssVar('--ink');
+  ctx.clearRect(0,0,size,size);
+  for(let i=0;i<N;i++){
+    const st=-Math.PI/2+i*a;
+    ctx.beginPath(); ctx.moveTo(r,r); ctx.arc(r,r,r-2,st,st+a); ctx.closePath();
+    ctx.fillStyle=fills[(i+(N%4===1&&i===N-1?1:0))%4]; ctx.fill();
+    ctx.strokeStyle=edge; ctx.lineWidth=3; ctx.stroke();
+    if(!items[i]) continue;
+    ctx.save(); ctx.translate(r,r); ctx.rotate(st+a/2);
+    ctx.fillStyle=ink; ctx.textAlign='right'; ctx.textBaseline='middle';
+    const fs=Math.max(11,Math.min(14,size/22)); ctx.font=`700 ${fs}px "Noto Sans TC","Microsoft JhengHei",sans-serif`;
+    let t=items[i]; if(t.length>7) t=t.slice(0,6)+'…';
+    ctx.fillText(t,r-14,0); ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(r,r,r-2,0,Math.PI*2); ctx.strokeStyle=cssVar('--line'); ctx.lineWidth=2; ctx.stroke();
+  const hub=$(W.hub); if(hub) hub.innerHTML=esc(W.label).replace(/\n/g,'<br>');
+}
+function spinTo(idx,ms,W=wheel){
+  return new Promise(res=>{
+    const cv=$(W.cv); if(!cv){res();return;}
+    const N=W.items.length, a=360/N;
+    const desired=-(idx*a+a/2) + (Math.random()-.5)*a*.6;
+    const cur=W.rot, base=cur-(((cur%360)+360)%360);
+    let target=base+(((desired%360)+360)%360);
+    const turns = ms>1500?4:2;
+    while(target<cur+turns*360) target+=360;
+    if(!ms||reduced()){ cv.style.transition='none'; W.rot=target; cv.style.transform=`rotate(${target}deg)`; res(); return; }
+    cv.style.transition=`transform ${ms}ms cubic-bezier(.15,.7,.15,1)`;
+    W.rot=target; cv.style.transform=`rotate(${target}deg)`;
+    setTimeout(res,ms+60);
+  });
+}
+function wheelItems(role,chosenId){
+  const pool=ACTIVE.filter(r=>fitsRole(r,SLOT_ROLE[role]||role)&&weight(S,r)>0&&r.id!==chosenId).sort(()=>Math.random()-.5).slice(0,9);
+  const all=[...pool]; const at=Math.floor(Math.random()*(all.length+1)); all.splice(at,0,RX[chosenId]);
+  return {names:all.map(r=>r.n), idx:at};
+}
+let spinning=false, skipSpin=false, hidden=new Set();
+let mode='week';
+// 第二輪：從這週煮的菜裡抽今天的一餐
+const DAY_ROLES=['main','side','veg'];
+const DAY_LABEL={main:'主菜',side:'配菜',veg:'青菜'};
+function dayPool(role){
+  const ss=S.plan.sessions, ids = role==='main' ? [ss[0].main1,ss[0].main2,ss[1].main1,ss[1].main2] : [ss[0][role],ss[1][role]];
+  return [...new Set(ids)].filter(id=>RX[id]);
+}
+function todayValid(){
+  const t=S.today; return t && t.date===iso(new Date()) && DAY_ROLES.every(r=>dayPool(r).includes(t[r]));
+}
+function pickDay(role,avoid){
+  const pool=dayPool(role); const opts=pool.filter(x=>x!==avoid);
+  const list=opts.length?opts:pool; return list[Math.floor(Math.random()*list.length)];
+}
+let daySpinning=false;
+async function spinDay(only){
+  if(daySpinning) return;
+  daySpinning=true;
+  const roles = only?[only]:DAY_ROLES;
+  const prev = todayValid()?S.today:{};
+  const next = {...prev, date:iso(new Date())};
+  for(const r of roles) next[r]=pickDay(r, prev[r]);
+  for(const r of DAY_ROLES) if(!next[r]) next[r]=pickDay(r);
+  dayHidden = new Set(roles);
+  S.today=next; save(); render();
+  const go=S.settings.motion && !reduced();
+  for(let i=0;i<roles.length;i++){
+    const r=roles[i], id=next[r];
+    if(go){
+      const pool=dayPool(r).map(x=>RX[x].n); let names=[]; while(names.length<6) names=names.concat(pool);
+      const hits=names.map((n,j)=>n===RX[id].n?j:-1).filter(j=>j>=0);
+      drawWheel(names,'今天的\n'+DAY_LABEL[r],wheel2);
+      await spinTo(hits[Math.floor(Math.random()*hits.length)], i===0&&!only?2000:1000, wheel2);
+    }
+    dayHidden.delete(r); renderDayResult(r);
+  }
+  daySpinning=false; dayHidden.clear(); render();
+}
+let dayHidden=new Set();
+function dayRowsHTML(){
+  const t=S.today;
+  const mainR=RX[t.main];
+  const st = staple(mainR);
+  const row=(r)=>{
+    const id=t[r], pool=dayPool(r), hid=dayHidden.has(r);
+    return `<div class="slot"><span class="role ${r==='main'?'main':r}">${DAY_LABEL[r]}</span>
+      <div class="mid"><button class="dname ${hid?'hide':''}" id="day-${r}" ${hid?'':`data-open="${id}"`}>${hid?'？？？':esc(RX[id].n)}</button>
+      <span class="meta">${hid?'抽籤中':(r==='veg'?'5 分鐘現做':(RX[id].cook==='fresh'?'這道現煮比較好吃':'冰箱拿出來加熱'))}</span></div>
+      <div class="icobtns"><button class="ico" data-dayswap="${r}" ${pool.length<2||daySpinning?'disabled':''} aria-label="換${DAY_LABEL[r]}">換</button></div></div>`;
+  };
+  return `<div class="slot"><span class="role bf">主食</span><div class="mid"><span class="dname">${st}</span></div><div></div></div>${DAY_ROLES.map(row).join('')}`;
+}
+function renderDayResult(r){
+  const box=$('#dayRows'); if(!box) return;
+  box.innerHTML=dayRowsHTML();
+  const b=$('#day-'+r); if(b) b.classList.add('pop');
+}
+function dayHTML(){
+  const has=todayValid();
+  return `<section class="card wheelcard">
+      <div class="wheelwrap small"><div class="pointer"></div><canvas id="wheel2" aria-label="今天吃什麼轉盤"></canvas><div class="hub" id="hub2"></div></div>
+      <span class="small muted">從這週煮的菜裡，抽今天這一餐：主食＋主菜＋配菜＋青菜</span>
+      <div class="spinrow"><button class="btn primary big" id="btnDay" ${daySpinning?'disabled':''}>${daySpinning?'轉盤轉動中…':has?'整餐重抽':'抽今天這一餐'}</button></div>
+    </section>
+    ${has?`<section class="card"><div class="sess-head"><h2>今天吃這個</h2><span class="muted small">不喜歡哪一樣，就按旁邊的「換」</span></div><div id="dayRows">${dayRowsHTML()}</div></section>`:''}`;
+}
+async function spinWeek(){
+  if(spinning) return;
+  spinning=true; skipSpin=false; moveSel=null;
+  const p=generate(S,S.plan); S.plan=p; S.checked={}; save();
+  const order=[]; for(let si=0;si<2;si++) for(const role of ROLES){ const k=si+'.'+role; if(!S.plan.locks[k]) order.push([si,role]); }
+  hidden=new Set(order.map(([si,role])=>si+'.'+role));
+  render();
+  const go=S.settings.motion && !reduced();
+  for(let i=0;i<order.length;i++){
+    const [si,role]=order[i], id=S.plan.sessions[si][role];
+    if(go && !skipSpin){
+      const {names,idx}=wheelItems(role,id);
+      drawWheel(names,`${si?'第二次':'第一次'}\n${slotLabel(role)}`);
+      await spinTo(idx, i===0?2600:1100);
+    }
+    hidden.delete(si+'.'+role);
+    if(!skipSpin){ $('#result').innerHTML=`${si?'第二次':'第一次'}開伙・${slotLabel(role)}：<b>${esc(RX[id].n)}</b>`; renderMenuOnly(si+'.'+role); }
+  }
+  hidden.clear(); spinning=false;
+  $('#result').innerHTML='抽好了！往下看這週的菜單，要買的在「採買」頁';
+  render();
+}
+
+// ---------- 畫面
+let tab='spin';
+function renderHeader(){
+  const sh=shopping(S,S.plan), over=sh.total>S.settings.budget;
+  const pill=$('#budgetPill'); pill.className='pill'+(over?' over':''); pill.innerHTML=`本週約 <span class="num">${money(sh.total)}</span>`;
+  const h=new Date().getHours();
+  $('#greet').textContent = tab==='skill'?'我的熟練度' : tab==='shop'?'採買清單' : tab==='set'?'設定' : (h<11?'早安，這週想吃什麼？':h<17?'這週想吃什麼？':'晚上好，這週想吃什麼？');
+  const d=S.lastUpdate?(Date.now()-new Date(S.lastUpdate+'T00:00:00'))/864e5:99;
+  $('#dueHint').hidden = !(d>=14 && Object.keys(S.progress).length>=3) || tab==='skill';
+}
+function slotLabel(k){ return SLOT_ROLE[k]==='main'?'主菜':ROLE_LABEL[k]; }
+let moveSel=null;
+function slotHTML(si,k){
+  const key=si+'.'+k, id=S.plan.sessions[si][k], r=RX[id], locked=!!S.plan.locks[key], role=SLOT_ROLE[k];
+  if(hidden.has(key)) return `<div class="slot"><span class="role ${role}">${slotLabel(k)}</span><div class="mid"><span class="dname hide">？？？</span><span class="meta">轉盤抽籤中</span></div></div>`;
+  const c=cooked(S,id), n=slotServings(S,si,k);
+  const buy=r.sea.filter(x=>!S.owned.includes(x)).map(x=>`<span class="tag buy">要買${SEA[x][0]}</span>`).join('');
+  let ctrl='';
+  if(moveSel){
+    const mk=moveSel.split('.')[1];
+    if(moveSel===key) ctrl=`<button class="on" data-move="${key}">取消調換</button>`;
+    else if(SLOT_ROLE[mk]===role) ctrl=`<button class="target" data-moveto="${key}">跟這道換</button>`;
+  } else ctrl=`<button data-swap="${si}|${k}" ${locked||spinning?'disabled':''}>換一道</button><button data-move="${key}" ${spinning?'disabled':''}>調換位置</button><button class="${locked?'on':''}" data-lock="${key}">${locked?'已鎖定':'鎖定'}</button>`;
+  return `<div class="slot ${moveSel===key?'sel':''}">
+    <span class="role ${role}">${slotLabel(k)}</span>
+    <div class="mid">
+      <button class="dname" data-open="${id}" id="dn-${si}-${k}">${esc(r.n)}</button>
+      <span class="meta">${badge(c)}${pips(c)}${r.roles.includes('special')?'<span class="tag sp">特別</span>':''}${r.mem?'<span class="tag mem">回憶菜</span>':''}${r.ai||r.extra?'<span class="tag new">新加入</span>':''}${buy}</span>
+      <span class="meta">${n} 份 · 約 <span class="num">${dishCost(id,n)}</span> 元 · ${r.min} 分鐘</span>
+      ${ctrl?`<div class="ctrl">${ctrl}</div>`:''}
+    </div></div>`;
+}
+function staple(r){ return r.use.pasta?'義大利麵':r.use.noodle?'麵':r.id==='kimchi_rice'?'炒飯':'飯'; }
+function flowFor(si){
+  const s=S.plan.sessions[si];
+  const items=['main1','main2','side'].map(k=>RX[s[k]]);
+  const pots=items.filter(r=>r.cook==='pot'), pans=items.filter(r=>r.cook==='pan'), fresh=items.filter(r=>r.cook==='fresh');
+  const steps=['電鍋先煮飯：大約 2 杯米，夠吃幾餐。'];
+  pots.forEach((r,i)=>steps.push(i===0?`先開始燉「${r.n}」（快煮鍋），它最花時間。`:`「${r.n}」也要燉：放宿舍電鍋，或等快煮鍋空出來。`));
+  pans.forEach(r=>steps.push(`${pots.length?'等的時候':'接著'}用平底鍋做「${r.n}」。`));
+  steps.push('分裝成幾盒，放涼再冰。');
+  fresh.forEach(r=>steps.push(`「${r.n}」煮好馬上吃最好吃，可以當開伙那天的晚餐，或之後想吃那天再現做。`));
+  steps.push(`「${RX[s.veg].n}」之後每天做一份，5 分鐘。`);
+  const t=items.reduce((a,r)=>a+r.min,0);
+  return `<details class="flow"><summary>開伙順序（大約 ${Math.round(t*.75/5)*5} 分鐘）</summary><ol>${steps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></details>`;
+}
+function sessionHTML(si){
+  const s=S.plan.sessions[si], show=k=>!hidden.has(si+'.'+k), n=k=>show(k)?esc(RX[s[k]].n):'？';
+  return `<section class="card" id="sess-${si}">
+    <div class="sess-head"><h2>${si?'第二次開伙':'第一次開伙'}</h2><span class="muted small">大約吃 ${prepMeals(S)[si]} 餐</span></div>
+    ${SLOTS.map(k=>slotHTML(si,k)).join('')}
+    <div class="plates"><span class="lbl">每一餐</span><span>主食 ＋ ${n('main1')}或${n('main2')} ＋ ${n('side')} ＋ ${n('veg')}</span>
+      <span class="small muted">兩道主菜輪流吃。每天吃哪一道，可以到「第二輪」抽。</span></div>
+    ${flowFor(si)}
+  </section>`;
+}
+function renderSpin(){
+  const seg=`<div class="seg" role="tablist" aria-label="抽菜模式">
+      <button role="tab" data-mode="week" aria-selected="${mode==='week'}">第一輪・這週煮什麼</button>
+      <button role="tab" data-mode="day" aria-selected="${mode==='day'}">第二輪・今天吃什麼</button></div>`;
+  if(mode==='day'){
+    $('#tab-spin').innerHTML=seg+dayHTML();
+    const cv=$('#wheel2'); cv.style.transform=`rotate(${wheel2.rot}deg)`;
+    if(!wheel2.items.length){ let names=[]; const pool=[...dayPool('main'),...dayPool('side')].map(x=>RX[x].n); while(names.length<6) names=names.concat(pool); wheel2.items=names; }
+    drawWheel(wheel2.items,undefined,wheel2);
+    return;
+  }
+  let bf='';
+  if(S.plan.bf) bf=`<section class="card"><div class="sess-head"><h2>早餐</h2><span class="muted small">兩種輪流吃，不想吃可以到「設定」關掉</span></div>${S.plan.bf.map(id=>{const c=cooked(S,id);return `<div class="slot"><span class="role bf">早餐</span><div class="mid"><button class="dname" data-open="${id}">${esc(RX[id].n)}</button><span class="meta">${badge(c)}${pips(c)}</span></div><div></div></div>`;}).join('')}</section>`;
+  $('#tab-spin').innerHTML=seg+`
+    <section class="card wheelcard">
+      <div class="wheelwrap"><div class="pointer"></div><canvas id="wheel" aria-label="抽菜轉盤"></canvas><div class="hub" id="hub"></div></div>
+      <div class="result" id="result" aria-live="polite">${spinning?'':'按一下，抽這週要煮的菜'}</div>
+      <div class="spinrow">
+        <button class="btn primary big" id="btnSpin" ${spinning?'disabled':''}>${spinning?'轉盤轉動中…':'轉一下，抽這週菜單'}</button>
+        ${spinning?'<button class="btn" id="btnSkip">跳過</button>':''}
+      </div>
+      <span class="small muted">每道菜下面可以「換一道」、「調換位置」或「鎖定」。鎖定的菜重抽時不會被換掉。</span>
+    </section>
+    <div id="menuArea" class="stack">${sessionHTML(0)}${sessionHTML(1)}${bf}</div>
+    <p class="small muted" style="margin:0 4px">轉盤抽的是「要煮的菜」，要買的食材會自動整理在「採買」頁。煮好以後，到「第二輪」抽每天吃哪幾樣。</p>
+    <button class="btn" id="btnNewWeek">這週吃完了，結算並開始下一週</button>`;
+  const cv=$('#wheel'); cv.style.transform=`rotate(${wheel.rot}deg)`;
+  if(!wheel.items.length){ const pool=ACTIVE.filter(r=>fitsRole(r,'main')).sort(()=>Math.random()-.5).slice(0,10).map(r=>r.n); wheel.items=pool; }
+  drawWheel(wheel.items);
+}
+function renderMenuOnly(revealedKey){
+  const area=$('#menuArea'); if(!area) return;
+  for(const si of [0,1]){ const el=$('#sess-'+si); if(el) el.outerHTML=sessionHTML(si); }
+  if(revealedKey){ const b=$('#dn-'+revealedKey.replace('.','-')); if(b) b.classList.add('pop'); }
+  renderHeader();
+}
+function renderShop(){
+  const sh=shopping(S,S.plan);
+  const order=['肉類','海鮮冷凍','蛋豆奶','蔬菜','辛香料','主食乾貨'];
+  const row=(key,nm,right,note)=>{ const done=!!S.checked[key];
+    return `<label class="item ${done?'done':''}"><input type="checkbox" data-check="${key}" ${done?'checked':''}><span class="nm">${nm}</span>${right}${note?`<span class="note">${note}</span>`:''}</label>`; };
+  const buy=sh.items.filter(i=>i.packs>0), have=sh.items.filter(i=>i.packs===0);
+  const g={}; buy.forEach(it=>(g[ING[it.id][3]]=g[ING[it.id][3]]||[]).push(it));
+  let h=order.filter(x=>g[x]).map(x=>`<div class="group"><h3>${x}</h3>${g[x].map(it=>{
+    const [nm,pack]=ING[it.id];
+    const left=it.left>=0.15?(keeps(it.id)?' · 會剩一些，留到下週':' · 會剩一些，記得吃完'):'';
+    return row(it.id,`${esc(nm)} <span class="muted small">${esc(pack)}${it.packs>1?' × '+it.packs:''}</span>`,
+      `<span class="price">$<input type="number" min="0" step="1" id="price-${it.id}" data-price="${it.id}" value="${price(S,it.id)}" aria-label="${esc(nm)} 單價"></span>`,
+      `用在：${it.users.map(esc).join('、')}${it.have>0.05?' · 家裡還有一些':''}${left}`);
+  }).join('')}</div>`).join('');
+  h+=`<div class="group"><h3>豆漿、水果、米（每週固定）</h3>${sh.fixed.map(f=>row(f.id,`${f.n}${f.qty>1?' × '+f.qty:''}`,`<span class="price">$${f.cost}</span>`,'')).join('')}</div>`;
+  if(sh.newSea.length) h+=`<div class="group"><h3>調味料</h3>${sh.newSea.map(x=>row('sea_'+x.id,SEA[x.id][0],`<span class="price">$${x.cost}</span>`,'勾了就會記住你有，下週不再算錢')).join('')}</div>`;
+  if(have.length) h+=`<div class="group"><h3>家裡已經有，不用買</h3><p class="small muted" style="margin:4px 0 0">${have.map(i=>esc(ING[i.id][0])).join('、')}</p></div>`;
+  const left=buy.filter(i=>!S.checked[i.id]).length;
+  $('#tab-shop').innerHTML=`
+    <section class="card">
+      <div class="trip-h"><h2>這週要買的</h2><span class="small muted">還有 ${left} 樣沒買</span></div>
+      ${h}
+      <div class="total"><span>結帳大約</span><span class="num">${money(sh.cash)}</span></div>
+    </section>
+    <section class="card">
+      <p class="small muted" style="margin:0 0 10px">放得久的食材（冷凍肉、洋蔥、紅蘿蔔、罐頭、辛香料）沒用完會留到下週，下週就不用再買，所以第一週會比較貴。價格是全聯常見售價的估計，買完可以直接改成實際價格。</p>
+      <div class="chips"><button class="btn tiny" id="btnClearCheck">清除勾選</button></div>
+    </section>
+    <section class="card">
+      <h2>冰箱和櫃子</h2>
+      <p class="small muted" style="margin:6px 0 10px">一週結束時，App 會用「你勾了買的」減掉「你登記煮的」，自動記下剩下的食材，下週抽菜會優先用掉。放不久的葉菜、豆腐不會記。</p>
+      ${Object.keys(S.pantry||{}).filter(k=>ING[k]).length?Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>`<div class="item"><span></span><span class="nm">${esc(ING[k][0])} <span class="muted small">約 ${v>=1?(+v.toFixed(1))+' 包':'剩一些'}</span></span><button class="btn tiny" data-unpantry="${k}">用完了</button></div>`).join(''):'<p class="small muted" style="margin:0">目前沒有紀錄。</p>'}
+      <div class="row" style="margin-top:10px"><select id="pantryAdd" aria-label="選一樣家裡已經有的食材" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('')}</select><button class="btn tiny" id="btnPantryAdd">家裡有這個</button></div>
+    </section>`;
+}
+function titleFor(m){ return m>=10?['出社會也不怕',null]:m>=6?['宿舍料理王',10]:m>=3?['家常菜高手',6]:m>=1?['小廚師',3]:['廚房新生',1]; }
+function skillRow(r){
+  const c=cooked(S,r.id), nx=nextStageAt(c), ch=challengeFor(r,c+1);
+  const next = nx ? `再煮 ${nx-c} 次 → ${STAGES[stageOf(nx)].n}` : '已經是拿手菜';
+  return `<div class="skill">
+    <div class="mid">
+      <button class="dname" data-open="${r.id}">${esc(r.n)}</button>
+      <span class="meta">${badge(c)}${pips(c)}<span class="num">${c}</span> 次 · ${next}</span>
+      <span class="next">下次挑戰：${esc(ch.t)}</span>
+    </div>
+    <div class="plus">${c?`<button class="sub" data-undo="${r.id}" aria-label="少記一次">−</button>`:''}<button class="add" data-log="${r.id}" aria-label="登記煮了一次">+</button></div>
+  </div>`;
+}
+let showAllNew=false, adding=false, addNote='';
+function renderSkill(){
+  const list=ACTIVE;
+  const by=[[],[],[],[]]; list.forEach(r=>by[stageOf(cooked(S,r.id))].push(r));
+  const m=by[3].length, [title,nextAt]=titleFor(m);
+  const prev = m>=10?10:m>=6?6:m>=3?3:m>=1?1:0;
+  const pct = nextAt? Math.round((m-prev)/(nextAt-prev)*100) : 100;
+  const inPlan=new Set(planIds(S.plan));
+  const sortFn=(a,b)=>(inPlan.has(b.id)-inPlan.has(a.id))||cooked(S,b.id)-cooked(S,a.id);
+  const sec=(i,arr,intro)=>arr.length?`<section class="card"><div class="sec-h"><span class="badge st${i}">${STAGES[i].n}</span><span class="small muted">${intro} · ${arr.length} 道</span></div>${arr.sort(sortFn).map(skillRow).join('')}</section>`:'';
+  const notYet=by[0].sort(sortFn);
+  const days = S.lastUpdate ? Math.floor((Date.now()-new Date(S.lastUpdate+'T00:00:00'))/864e5) : null;
+  const due = days===null || days>=14;
+  $('#tab-skill').innerHTML=`
+    <section class="card hero">
+      <span class="small muted">我的廚藝稱號</span>
+      <span class="title">${title}</span>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <span class="small">${nextAt?`再 ${nextAt-m} 道拿手菜，升級成下一個稱號`:'你已經可以自己照顧自己了'}</span>
+      <div class="counts">${[3,2,1,0].map(i=>`<div><b class="num">${by[i].length}</b>${STAGES[i].n}</div>`).join('')}</div>
+      <div class="ladder"><span>煮 1 次 → 新手</span><span>3 次 → 還算會做</span><span>5 次 → 拿手菜</span></div>
+    </section>
+    <p class="small muted" style="margin:0 4px">煮完按綠色的「＋」登記一次。每升一級會解鎖新挑戰，第 3 次和第 5 次各解鎖一個變化版。</p>
+    ${sec(3,by[3],'不用看食譜')}
+    ${sec(2,by[2],'偶爾看一下食譜')}
+    ${sec(1,by[1],'照著食譜做')}
+    <section class="card">
+      <div class="sec-h"><span class="badge st0">還沒煮過</span><span class="small muted">完全不會 · ${notYet.length} 道</span></div>
+      <p class="small muted" style="margin:8px 0">點菜名看做法。已經煮過的話，打開後按「煮好了」。</p>
+      <div class="chips">${(showAllNew?notYet:notYet.slice(0,14)).map(r=>`<button class="chipbtn" data-open="${r.id}">${esc(r.n)}${inPlan.has(r.id)?' ・這週':''}</button>`).join('')}
+      ${!showAllNew&&notYet.length>14?`<button class="chipbtn" id="btnMoreNew">還有 ${notYet.length-14} 道</button>`:''}</div>
+    </section>
+    <section class="card update ${due?'due':''}">
+      <h2>加入新菜</h2>
+      <p class="small" style="margin:6px 0">建議每兩週按一次，每次從備用菜單加 3 道新菜到轉盤裡。舊的菜都會留著。${S.lastUpdate?`上次是 ${S.lastUpdate}（${days} 天前）。`:''}</p>
+      <button class="btn ${due?'primary':''}" id="btnAddNew" ${adding?'disabled':''}>加入 3 道新菜</button>
+      ${addNote?`<p class="small" style="margin:8px 0 0">${esc(addNote)}</p>`:''}
+    </section>`;
+}
+function renderSet(){
+  const st=S.settings;
+  const num=(id,label,val,step=1)=>`<div class="row"><label for="set-${id}">${label}</label><input type="number" id="set-${id}" data-set="${id}" value="${val}" step="${step}" min="0"></div>`;
+  $('#tab-set').innerHTML=`
+    <section class="card"><h2>使用說明</h2><p class="small muted" style="margin:6px 0 10px">第一次用，或忘記怎麼用的時候看這裡。</p><button class="btn" id="btnHelp2">打開使用說明</button></section>
+    <section class="card"><h2>每週</h2>
+      ${num('budget','每週預算（元）',st.budget,50)}
+      <div class="row"><span>每週自己煮幾餐（午晚餐）</span><span class="chips" style="align-items:center"><button class="btn tiny" id="mealsDn" aria-label="少一餐">−</button><b class="num" style="min-width:28px;text-align:center">${st.meals}</b><button class="btn tiny" id="mealsUp" aria-label="多一餐">＋</button></span></div>
+      <div class="row"><span>早餐也自己做</span><button class="btn tiny ${st.breakfast?'on':''}" id="btnBf">${st.breakfast?'有':'沒有'}</button></div>
+      ${num('maxNewSea','每週最多新買幾樣調味料',st.maxNewSea)}
+      <div class="row"><span>轉盤動畫</span><button class="btn tiny ${st.motion?'on':''}" id="btnMotion">${st.motion?'開':'關'}</button></div>
+      <p class="small muted" style="margin:4px 0 0">豆漿、水果、米每週會自動算進預算（豆漿 ${st.soy} 瓶、水果約 ${st.fruit} 元、米約 ${st.rice} 元）。</p>
+    </section>
+    <section class="card"><h2>我有的調味料</h2>
+      <p class="small muted" style="margin:4px 0 10px">在購物清單勾了「買了」就會自動記住，這裡只是讓你修正。</p>
+      <div class="chips">${Object.entries(SEA).map(([id,[n]])=>`<button class="btn tiny ${S.owned.includes(id)?'on':''}" data-own="${id}">${n}</button>`).join('')}</div>
+    </section>
+    <section class="card"><h2>備份</h2>
+      <p class="small muted" style="margin:4px 0 10px">紀錄只存在這支手機的瀏覽器。換手機、清除瀏覽器資料之前，先下載備份檔；之後用「還原」選那個檔案就能救回來。${S.lastBackup?`上次備份：${S.lastBackup}。`:'還沒備份過。'}</p>
+      <div class="chips"><button class="btn" id="btnBackup">下載備份檔</button><button class="btn" id="btnRestore">從備份檔還原</button></div>
+      <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+    </section>
+    <section class="card"><h2>重新開始</h2>
+      <p class="small muted" style="margin:4px 0 10px">清掉所有熟練度紀錄、冰箱紀錄、價格和設定。</p>
+      <button class="btn" id="btnReset">${resetArmed?'再按一次就清除':'清除全部資料'}</button>
+    </section>`;
+}
+let resetArmed=false;
+function render(){
+  rebuild(S); ensurePlan();
+  document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));
+  ['spin','shop','skill','set'].forEach(t=>$('#tab-'+t).hidden=t!==tab);
+  if(tab==='spin') renderSpin(); if(tab==='shop') renderShop(); if(tab==='skill') renderSkill(); if(tab==='set') renderSet();
+  renderHeader();
+}
+
+// ---------- 這週結算：用「買了什麼」減掉「煮了什麼」，算出冰箱剩下的
+function weekLeftover(plan,cookedIds){
+  const sh=shopping(S,plan);
+  const anyChecked=sh.items.some(i=>S.checked[i.id]);
+  const need={};
+  const add=(rid,mult)=>{ for(const [k,q] of Object.entries(RX[rid].use)) need[k]=(need[k]||0)+q*mult; };
+  plan.sessions.forEach((s,si)=>{ for(const k of SLOTS) if(cookedIds.has(s[k])) add(s[k], slotServings(S,si,k)/RX[s[k]].sv); });
+  if(plan.bf) plan.bf.forEach((rid,i)=>{ if(cookedIds.has(rid)) add(rid,(i===0?4:3)/RX[rid].sv); });
+  const out={};
+  const ids=new Set([...Object.keys(S.pantry||{}),...sh.items.map(i=>i.id)]);
+  for(const k of ids){
+    if(!ING[k]||!keeps(k)) continue;
+    const it=sh.items.find(i=>i.id===k);
+    const bought = it ? ((anyChecked? !!S.checked[k] : true) ? it.packs : 0) : 0;
+    const left=(S.pantry[k]||0)+bought-(need[k]||0);
+    if(left>=0.1) out[k]=+left.toFixed(2);
+  }
+  return out;
+}
+function openWrapUp(){
+  const ids=[...new Set(planIds(S.plan))];
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt">
+    <div class="grab"></div>
+    <h2 id="wt">這週結算</h2>
+    <p class="small muted" style="margin:0">勾起來的是這週有煮的菜。已經按過「煮好了」的會先勾好；忘了登記的在這裡補勾，也會算進熟練度。沒煮的菜，食材會留在冰箱紀錄裡。</p>
+    <div>${ids.map(id=>`<label class="item"><input type="checkbox" id="wk-${id}" data-wk="${id}" ${S.weekLog.includes(id)?'checked':''}><span class="nm">${esc(RX[id].n)}</span><span></span></label>`).join('')}</div>
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">取消</button><button class="btn primary big" id="btnWrapOk">確定，開始下一週</button></div></div>
+  </div></div>`;
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+}
+function finishWeek(){
+  const ticked=new Set([...document.querySelectorAll('[data-wk]')].filter(x=>x.checked).map(x=>x.dataset.wk));
+  let ups=0;
+  for(const id of ticked) if(!S.weekLog.includes(id)){ const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())}; if(stageOf(b+1)!==stageOf(b)) ups++; }
+  S.pantry=weekLeftover(S.plan,ticked);
+  S.lastWeek=planIds(S.plan); S.weekLog=[]; S.seaWeek=[];
+  S.plan=null; S.plan=generate(S,null); S.checked={}; S.today=null;
+  save(); closeSheet(); tab='spin'; mode='week'; render(); window.scrollTo(0,0);
+  toast(`新的一週！${ups?`有 ${ups} 道菜升級了。`:''}冰箱還有 ${Object.keys(S.pantry).length} 樣食材會優先用掉`);
+}
+function openHelp(){
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ht">
+    <div class="grab"></div>
+    <h2 id="ht">怎麼用開伙轉盤</h2>
+    <ol class="steps">
+      <li><b>抽這週的菜</b>：「抽菜」頁的第一輪，按「轉一下」。每次開伙會抽出兩道主菜、一道配菜或湯、一道青菜。不喜歡就按「換一道」，想對調就按「調換位置」，想保留就「鎖定」。</li>
+      <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
+      <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
+      <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
+      <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，從這週煮好的菜裡抽今天這一餐，可以整餐重抽或只換一樣。</li>
+      <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
+      <li><b>冰箱和櫃子</b>：在「採買」頁最下面。用完的按「用完了」；本來就有的東西可以自己加進去。</li>
+      <li><b>每兩週加新菜</b>：「熟練度」頁最下面按「加入 3 道新菜」，舊的菜都會留著。</li>
+      <li><b>備份</b>：紀錄存在這支手機。偶爾到「設定」按「下載備份檔」，換手機時用「還原」救回來。</li>
+    </ol>
+    <div class="tip">升級規則：煮 1 次是新手，3 次是還算會做，5 次就是拿手菜。第 3 次和第 5 次各解鎖一個變化版。</div>
+    <div class="sticky-cta"><button class="btn primary big" id="sclose">知道了</button></div>
+  </div></div>`;
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+}
+
+// ---------- 食譜卡
+function openRecipe(id){
+  const r=RX[id]; if(!r) return;
+  const c=cooked(S,id), ch=challengeFor(r,c+1), v=varsOf(r);
+  const ing=Object.entries(r.use).map(([k,q])=>`<li>${esc(ING[k][0])}</li>`).join('');
+  const sea=r.sea.map(x=>`<span class="tag ${S.owned.includes(x)?'new':'buy'}">${SEA[x][0]}${S.owned.includes(x)?'':'（要買）'}</span>`).join(' ');
+  const tool=r.cook==='pot'?'快煮鍋／電鍋':r.cook==='pan'?'平底鍋':'快煮鍋或平底鍋';
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="st">
+    <div class="grab"></div>
+    <div><h2 id="st" style="font-size:22px">${esc(r.n)}</h2>
+      <div class="meta" style="margin-top:4px">${badge(c)}${pips(c,true)}<span>煮過 <span class="num">${c}</span> 次</span></div>
+      <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${tool}</div></div>
+    <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
+    <div><h3>食材（${r.sv} 份）</h3><ul class="ing">${ing}</ul></div>
+    <div><h3>調味料</h3><div class="chips" style="margin-top:6px">${sea}</div></div>
+    <div><h3>步驟</h3><ol class="steps" style="margin-top:6px">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol></div>
+    ${r.reheat?`<div class="small"><b>備餐加熱：</b>${esc(r.reheat)}</div>`:''}
+    ${r.tip?`<div class="tip"><b>小提醒　</b>${esc(r.tip)}</div>`:''}
+    <div><h3>變化版</h3><div class="vars" style="margin-top:6px">
+      <div class="${c>=2?'':'lock'}"><span>${c>=2?'🔓':'🔒'}</span><span>${c>=2?esc(v[0]):'煮到第 3 次解鎖'}</span></div>
+      <div class="${c>=4?'':'lock'}"><span>${c>=4?'🔓':'🔒'}</span><span>${c>=4?esc(v[1]):'煮到第 5 次解鎖'}</span></div>
+    </div></div>
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">關閉</button><button class="btn primary big" data-log="${id}">煮好了！登記一次</button></div></div>
+  </div></div>`;
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+}
+function closeSheet(){ $('#sheetRoot').innerHTML=''; }
+
+function logCook(id){
+  const r=RX[id], before=cooked(S,id), after=before+1;
+  S.progress[id]={c:after,last:iso(new Date())};
+  S.weekLog=[...(S.weekLog||[]),id];
+  save(); closeSheet(); render();
+  const s0=stageOf(before), s1=stageOf(after);
+  if(s1!==s0) celebrate(r,s0,s1,after);
+  else { const nx=nextStageAt(after); toast(`「${r.n}」第 ${after} 次${nx?`，再 ${nx-after} 次升級`:''}`); }
+}
+function celebrate(r,s0,s1,c){
+  const v=varsOf(r);
+  const unlock = s1===1?'下次挑戰：試著少看幾次食譜' : s1===2?'解鎖變化版：'+v[0] : '解鎖拿手挑戰：'+v[1];
+  $('#celebrateRoot').innerHTML=`<div class="celebrate" id="cel"><div class="box">
+    <canvas id="confetti"></canvas>
+    <div class="up">${s1===3?'拿手菜誕生！':'升級了！'}</div>
+    <h2>${esc(r.n)}</h2>
+    <div class="from"><span class="badge st${s0}">${STAGES[s0].n}</span>→<span class="badge st${s1}">${STAGES[s1].n}</span></div>
+    ${pips(c,true)}
+    <p class="small" style="margin:0">${esc(unlock)}</p>
+    <button class="btn primary" id="celOk">好耶</button>
+  </div></div>`;
+  $('#celOk').onclick=()=>$('#celebrateRoot').innerHTML='';
+  if(!reduced()) confetti($('#confetti'));
+}
+function confetti(cv){
+  const box=cv.parentElement, w=box.clientWidth, h=box.clientHeight, dpr=window.devicePixelRatio||1;
+  cv.width=w*dpr; cv.height=h*dpr; const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  const cols=['--tomato','--yolk-bright','--leaf','--sky'].map(cssVar);
+  const ps=Array.from({length:70},()=>({x:w/2,y:h*.3,vx:(Math.random()-.5)*9,vy:-Math.random()*8-3,r:Math.random()*6+3,c:cols[Math.floor(Math.random()*4)],a:Math.random()*6}));
+  let t=0; (function f(){ ctx.clearRect(0,0,w,h); ps.forEach(p=>{ p.vy+=.28; p.x+=p.vx; p.y+=p.vy; p.a+=.2; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle=p.c; ctx.fillRect(-p.r/2,-p.r/4,p.r,p.r/2); ctx.restore(); }); if(++t<110 && document.body.contains(cv)) requestAnimationFrame(f); else ctx.clearRect(0,0,w,h); })();
+}
+function slotMachine(key,finalName){
+  const b=$('#dn-'+key.replace('.','-')); if(!b) return;
+  if(reduced()){ return; }
+  const names=ACTIVE.map(r=>r.n); let i=0;
+  const iv=setInterval(()=>{ b.textContent=names[Math.floor(Math.random()*names.length)]; if(++i>9){ clearInterval(iv); b.textContent=finalName; b.classList.add('pop'); } },60);
+}
+
+// ---------- 加入新菜
+function addNewDishes(){
+  const left=R.filter(r=>r.extra&&!(S.unlocked||[]).includes(r.id)).slice(0,3);
+  if(!left.length){ addNote='備用的新菜都加完了。想要更多菜，可以請 Claude 幫你更新這個 App。'; render(); return; }
+  S.unlocked=[...(S.unlocked||[]),...left.map(r=>r.id)];
+  S.lastUpdate=iso(new Date());
+  addNote='加入了：'+left.map(r=>r.n).join('、')+'。之後轉盤就有機會抽到。';
+  save(); render();
+}
+
+// ---------- 備份與還原
+function exportBackup(){
+  const data=JSON.stringify({app:'kaihuo-wheel',savedAt:new Date().toISOString(),state:S});
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='開伙轉盤備份-'+iso(new Date())+'.json';
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  S.lastBackup=iso(new Date()); save(); render(); toast('備份檔已下載');
+}
+function importBackup(file){
+  const fr=new FileReader();
+  fr.onload=()=>{ try{ const d=JSON.parse(fr.result); if(d.app!=='kaihuo-wheel'||!d.state) throw 0; S=merge(d.state); save(); render(); toast('已還原備份'); }catch(e){ toast('這個檔案不是開伙轉盤的備份'); } };
+  fr.readAsText(file);
+}
+
+// ---------- 事件
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.tab){ tab=t.dataset.tab; resetArmed=false; render(); window.scrollTo(0,0); return; }
+  if(t.dataset.open){ openRecipe(t.dataset.open); return; }
+  if(t.dataset.log){ logCook(t.dataset.log); return; }
+  if(t.dataset.undo){ const id=t.dataset.undo, c=cooked(S,id); if(c>0){ S.progress[id]={...S.progress[id],c:c-1}; const wi=(S.weekLog||[]).lastIndexOf(id); if(wi>=0) S.weekLog.splice(wi,1); save(); render(); toast(`「${RX[id].n}」少記一次`); } return; }
+  if(t.dataset.lock){ const k=t.dataset.lock; S.plan.locks[k]=!S.plan.locks[k]; save(); renderMenuOnly(); return; }
+  if(t.dataset.move){ moveSel = moveSel===t.dataset.move?null:t.dataset.move; renderMenuOnly(); if(moveSel) toast('再選一道同類的菜，兩道會交換位置'); return; }
+  if(t.dataset.moveto){ const [a1,a2]=moveSel.split('.'), [b1,b2]=t.dataset.moveto.split('.'); const A=S.plan.sessions[a1], B=S.plan.sessions[b1]; [A[a2],B[b2]]=[B[b2],A[a2]]; moveSel=null; save(); renderMenuOnly(); toast('已調換'); return; }
+  if(t.dataset.swap){ const [si,role]=t.dataset.swap.split('|'); const id=rerollSlot(S,S.plan,+si,role); S.plan.sessions[si][role]=id; save(); renderMenuOnly(); slotMachine(si+'.'+role,RX[id].n); return; }
+  if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
+  if(t.dataset.unpantry){ delete S.pantry[t.dataset.unpantry]; save(); render(); return; }
+  if(t.dataset.mode){ if(spinning||daySpinning) return; mode=t.dataset.mode; render(); return; }
+  if(t.dataset.dayswap){ spinDay(t.dataset.dayswap); return; }
+  if(t.dataset.meals){ S.settings.meals=+t.dataset.meals; save(); render(); return; }
+  switch(t.id){
+    case 'btnSpin': spinWeek(); return;
+    case 'btnDay': spinDay(); return;
+    case 'btnSkip': skipSpin=true; return;
+    case 'btnMoreNew': showAllNew=true; render(); return;
+    case 'btnAddNew': addNewDishes(); return;
+    case 'btnBf': S.settings.breakfast=!S.settings.breakfast; S.plan=generate(S,S.plan); save(); render(); return;
+    case 'btnMotion': S.settings.motion=!S.settings.motion; save(); render(); return;
+    case 'btnNewWeek': openWrapUp(); return;
+    case 'btnWrapOk': finishWeek(); return;
+    case 'btnHelp': case 'btnHelp2': openHelp(); return;
+    case 'mealsDn': S.settings.meals=Math.max(4,(S.settings.meals||8)-1); S.plan=generate(S,S.plan); save(); render(); return;
+    case 'mealsUp': S.settings.meals=Math.min(14,(S.settings.meals||8)+1); S.plan=generate(S,S.plan); save(); render(); return;
+    case 'btnPantryAdd': { const v=$('#pantryAdd')?.value; if(v&&ING[v]){ S.pantry[v]=+((S.pantry[v]||0)+1).toFixed(2); save(); render(); toast('已加入：'+ING[v][0]); } return; }
+    case 'btnClearCheck': S.checked={}; save(); render(); return;
+    case 'btnBackup': exportBackup(); return;
+    case 'btnRestore': $('#restoreFile').click(); return;
+    case 'btnReset': if(!resetArmed){ resetArmed=true; render(); return; } resetArmed=false; S=defaultState(); save(); render(); toast('已清除'); return;
+  }
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='restoreFile'&&t.files&&t.files[0]){ importBackup(t.files[0]); t.value=''; return; }
+  if(t.dataset.check){
+    const key=t.dataset.check; S.checked[key]=t.checked;
+    if(key.startsWith('sea_')){ const id=key.slice(4);
+      if(t.checked){ if(!S.owned.includes(id)) S.owned.push(id); if(!S.seaWeek.includes(id)) S.seaWeek.push(id); }
+      else { S.owned=S.owned.filter(x=>x!==id); S.seaWeek=S.seaWeek.filter(x=>x!==id); } }
+    save(); render(); return; }
+  if(t.dataset.price){ S.prices[t.dataset.price]=Math.max(0,Math.round(+t.value||0)); save(); render(); return; }
+  if(t.dataset.set){ S.settings[t.dataset.set]=Math.max(0,+t.value||0); save(); render(); return; }
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeSheet(); $('#celebrateRoot').innerHTML=''; } });
+const redrawWheels=()=>{ if(tab!=='spin') return; if(mode==='day') drawWheel(wheel2.items,undefined,wheel2); else drawWheel(wheel.items); };
+window.addEventListener('resize',redrawWheels);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',redrawWheels);
+new MutationObserver(redrawWheels).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+// ---------- 啟動
+const local=loadLocal(); if(local) S=merge(local);
+render();
+setSync(S.lastBackup?`紀錄存在這支手機。上次備份：${S.lastBackup}`:'紀錄存在這支手機，記得偶爾到「設定」備份');
+document.fonts?.ready?.then(redrawWheels);
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
