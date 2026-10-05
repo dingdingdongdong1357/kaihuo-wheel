@@ -115,6 +115,7 @@ details.flow summary{cursor:pointer;font-weight:700;color:var(--leaf);list-style
 details.flow summary::-webkit-details-marker{display:none}
 details.flow summary::before{content:"▸ ";}
 details.flow[open] summary::before{content:"▾ ";}
+details.flow ol.tl{list-style:none;padding-left:0}
 details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 
 /* stage badge + pips */
@@ -189,6 +190,7 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
 .note-row{padding-block:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
 .note-row:first-of-type{border-top:0}
+.tag.tg{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
 .askmini{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;width:22px;height:22px;font-size:12px;font-weight:700;padding:0;vertical-align:middle}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
@@ -905,6 +907,36 @@ function rebuild(S){
   SLOTS = ROLES = slotsFor(S);
   RX = Object.fromEntries([...R,...(S.custom||[])].map(r=>[r.id,r]));
 }
+// 每道菜的標記：做法、用什麼鍋、口味（抽菜時用來讓菜色均衡、鍋子分開同時用）
+const TAG_RAW={sanbei:'CPM',porkchop:'FPJ',chicken_pan:'FPQ',teriyaki:'FPJ',ginger_pork:'CPJ',huiguo:'CPH',hakka:'CPJ',radish_pork:'SKJ',braised:'SEJ',curry:'SKY',sesame_chicken:'SKM',kimchi_pot:'BKH',tomato_egg:'CPA',basil_egg:'CPQ',carrot_egg:'CPQ',cabbage_garlic:'CPQ',cabbage_shrimp:'CPQ',napa_stew:'SKQ',radish_rib:'TKQ',corn_rib:'TKQ',borscht:'TKA',tofu_soup:'TKA',qingjiang:'CPQ',douru_kongxin:'CPJ',garlic_spinach:'CPQ',longxu:'LKQ',blanch:'BKQ',hongshao_fish:'FPJ',shrimp_pasta:'CPQ',tomato_pasta:'CPA',beef_hotpot:'BKQ',sukiyaki:'BPJ',scallion_noodle:'BKJ',sesame_noodle:'BKM',shrimp_egg:'CPQ',pepper_shrimp:'CPH',rouzao:'SEJ',pepper_pork:'CPJ',kungpao:'CPH',mapo:'CPH',salt_chicken:'LKQ',oyakodon:'BPJ',clam_wine:'ZPQ',potsticker:'FPJ',yaki_udon:'CPJ',clam_egg:'ZEQ',broccoli:'CPQ',fungus_egg:'CPQ',seaweed_soup:'TKQ',bean_sprout:'CPQ',kailan:'BKJ',sweet_potato_leaf:'CPQ',chuanqi:'CPM',amaranth:'CPQ',okra:'LKQ',lettuce:'CPJ',snap_pea:'CPQ',zucchini:'FPQ',kongxin_garlic:'CPQ',kaiyang_napa:'CPQ',mixed_veg_egg:'CPQ',century_tofu:'LNJ',fungus_salad:'LKA',butter_corn:'CPY',pepper_king:'FPH',potato_shred:'CPA',tomato_veg_soup:'TKA',shiitake_soup:'TKQ',hot_sour_soup:'TKH',corn_soup:'TKY',krapow:'CPH',garlic_wing:'FPJ',mackerel:'FPQ',tomato_fish:'SPA',steam_fish:'ZEQ',onion_beef:'CPJ',dougan_pork:'CPJ',fried_tofu_pork:'SKJ',oyster_chicken:'CPJ',meat_egg:'ZEJ',tteok:'BPH',shrimp_noodle:'BKQ',congee:'BKQ',squid_basil:'CPM',salmon:'FPQ',nabeyaki:'BKJ',white_rice:'ZEQ',multigrain_rice:'ZEQ',sweet_potato_rice:'ZEQ',plain_congee:'BKQ',yangchun:'BKM',mantou_staple:'ZEQ',onion_egg:'CPQ',garlic_pork:'LKJ',potato_pork:'SKJ',kimchi_rice:'CPH',sacha_beef:'CPJ',cucumber:'LNA',sweet_sour_chicken:'CPA',dry_beans:'CPJ',fried_bihun:'CPJ',miso_soup:'TKY',butter_mushroom:'FPY',tomato_chicken:'SKA',miso_pork_soup:'TKY',garlic_shrimp:'ZEQ',sanbei_mushroom:'CPM',kailan_beef:'CPJ',spicy_pork:'CPH',salmon_rice:'CPQ',edamame:'CPQ',braised_tofu:'FPJ',curry_rice:'CPY'};
+const METHOD={L:'涼拌',C:'熱炒',F:'煎',S:'燉滷',Z:'蒸',T:'湯',B:'煮'};
+const TOOL={P:'平底鍋',K:'快煮鍋',E:'電鍋',N:'不開火'};
+const FLAVOR={J:'醬燒',Q:'清爽',H:'辣',A:'酸甜',M:'麻油',Y:'異國'};
+function tagOf(r){
+  const t=TAG_RAW[r.id];
+  if(t) return {m:t[0],t:t[1],f:t[2]};
+  const m=r.cook==='pot'?'S':r.cook==='cold'?'L':r.cook==='fresh'?'B':'C';
+  const f=r.sea.includes('bean_paste')||r.sea.includes('gochujang')?'H':r.sea.includes('miso')||r.use&&r.use.curry?'Y':r.sea.includes('sugar')&&r.sea.includes('soy')?'J':'Q';
+  return {m, t:r.cook==='pot'?'K':r.cook==='cold'?'N':'P', f};
+}
+const tagText=r=>{ const g=tagOf(r); return `${METHOD[g.m]}・${TOOL[g.t]}・${FLAVOR[g.f]}`; };
+// 一次開伙要做的菜（青菜每天現做、特色主食想吃那天再做，都不算）
+function batchOf(plan,si){ const s=plan.sessions[si]; return SLOTS.filter(k=>k!=='veg'&&k!=='staple').map(k=>RX[s[k]]); }
+function balancePenalty(plan){
+  let pen=0; const weekFl=new Set();
+  for(let si=0;si<2;si++){
+    const items=batchOf(plan,si), tg=items.map(tagOf);
+    const cnt=(arr)=>arr.reduce((o,x)=>(o[x]=(o[x]||0)+1,o),{});
+    for(const v of Object.values(cnt(tg.map(x=>x.m)))) if(v>1) pen+=(v-1)*15;         // 做法重複
+    for(const v of Object.values(cnt(tg.map(x=>x.f)))) if(v>1) pen+=(v-1)*9;          // 口味重複
+    const tools=cnt([...tg.map(x=>x.t),tagOf(RX[plan.sessions[si].staple]).t].filter(x=>x!=='N'));
+    for(const v of Object.values(tools)) if(v>2) pen+=(v-2)*18;                       // 同一個鍋排太多道
+    pen-=Object.keys(tools).length*4;                                                  // 鍋子分開用加分
+    tg.forEach(x=>weekFl.add(x.f));
+  }
+  pen-=weekFl.size*3;                                                                  // 一週吃到越多口味越好
+  return pen;
+}
 const ROLE_LABEL = {staple:'主食',fancy:'特色主食',main:'主菜',side:'配菜',soup:'湯',veg:'青菜',bf:'早餐'};
 // 每次開伙：兩道主菜＋一道配菜或湯＋一道青菜。蝦、火鍋、麵這類「特別」的菜也算主菜
 // 1–2 人：兩道主菜輪流、配菜、青菜。3–4 人：再多一道主菜，每餐吃兩道。5 人：再加一道湯。
@@ -1064,6 +1096,7 @@ function scorePlan(S,plan){
   if(special===0) rep+=15; if(special>spMax) rep+=(special-spMax)*10;
   for (const s of plan.sessions) if(mk.filter(k=>RX[s[k]].roles.includes('special')).length>1) rep+=10;
   for (const k of ['pasta','noodle','beef_hotpot','shrimp']) if(mains.filter(id=>RX[id].use[k]).length>1) rep+=8;
+  rep+=balancePenalty(plan);
   const fb = S._fridge ? fridgeBonus(plan,S._fridge) : 0;
   return {score: fb + ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5 - seaOver*80, sh};
 }
@@ -1126,7 +1159,21 @@ function rerollSlot(S,plan,si,role,rnd=Math.random){
 
 // ---------- 狀態與儲存
 let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
+// 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
+// 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
+const APP_VERSION='2026-10-05.14';
+const AUTO_LIST='kaihuo-auto-backups';
+function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
+function autoBackupIfUpgraded(raw,oldVer){
+  try{
+    const key='kaihuo-auto-'+(oldVer||'舊版')+'-'+Date.now();
+    localStorage.setItem(key,raw);
+    const list=[{key,ver:oldVer||'舊版',date:iso(new Date())},...autoBackups()];
+    for(const x of list.slice(3)) localStorage.removeItem(x.key);
+    localStorage.setItem(AUTO_LIST,JSON.stringify(list.slice(0,3)));
+  }catch(e){}
+}
 function loadLocal(){ try{ const t=localStorage.getItem(LS_KEY)||localStorage.getItem('weekly-kitchen-v1'); return t?JSON.parse(t):null; }catch(e){ return null; } }
 function merge(d){
   const base=defaultState(); const m={...base,...d,settings:{...base.settings,...(d.settings||{})}};
@@ -1385,7 +1432,7 @@ function slotHTML(si,k){
     <div class="mid">
       <button class="dname" data-open="${id}" id="dn-${si}-${k}">${esc(r.n)}</button>
       <span class="meta">${badge(c)}${pips(c)}${r.roles.includes('special')?'<span class="tag sp">特別</span>':''}${r.mem?'<span class="tag mem">回憶菜</span>':''}${r.ai||r.extra?'<span class="tag new">新加入</span>':''}${buy}${statusTags(id)}</span>
-      <span class="meta">${Math.round(n)} 份 · 約 <span class="num">${dishCost(id,n)}</span> 元 · ${r.min} 分鐘</span>
+      <span class="meta"><span class="tag tg">${tagText(r)}</span>${Math.round(n)} 份 · 約 <span class="num">${dishCost(id,n)}</span> 元 · ${r.min} 分鐘</span>
       ${ctrl?`<div class="ctrl">${ctrl}</div>`:''}
     </div></div>`;
 }
@@ -1400,25 +1447,40 @@ function fancyHTML(i){
     <div class="mid">
       <button class="dname" data-open="${f.id}" id="dn-f-${i}">${esc(r.n)}</button>
       <span class="meta">${badge(c)}${pips(c)}${r.mem?'<span class="tag mem">回憶菜</span>':''}${buy}${statusTags(f.id)}</span>
-      <span class="meta">換掉其中一餐的主食 · ${n} 份 · 約 <span class="num">${dishCost(f.id,n)}</span> 元 · ${r.min} 分鐘</span>
+      <span class="meta"><span class="tag tg">${tagText(r)}</span>換掉其中一餐的主食 · ${n} 份 · 約 <span class="num">${dishCost(f.id,n)}</span> 元 · ${r.min} 分鐘</span>
       ${ctrl?`<div class="ctrl">${ctrl}</div>`:''}
     </div></div>`;
 }
 function staple(r){ return r.use.pasta?'義大利麵':r.use.noodle?'麵':r.id==='kimchi_rice'?'炒飯':'飯'; }
 function flowFor(si){
-  const s=S.plan.sessions[si];
-  const items=SLOTS.filter(k=>k!=='veg'&&k!=='staple').map(k=>RX[s[k]]);
-  const pots=items.filter(r=>r.cook==='pot'), pans=items.filter(r=>r.cook==='pan'), fresh=items.filter(r=>r.cook==='fresh'), cold=items.filter(r=>r.cook==='cold');
-  const st=RX[s.staple], steps=[st.flow?`主食　${st.flow}`:`主食「${st.n}」：點菜名看做法。`];
-  pots.forEach((r,i)=>steps.push(i===0?`先開始燉「${r.n}」（快煮鍋），它最花時間。`:`「${r.n}」也要燉：放宿舍電鍋，或等快煮鍋空出來。`));
-  pans.forEach(r=>steps.push(`${pots.length?'等的時候':'接著'}用平底鍋做「${r.n}」。`));
-  cold.forEach(r=>steps.push(`「${r.n}」不用開火，最後拌一拌就好。`));
-  steps.push('分裝成幾盒，放涼再冰。');
-  fresh.forEach(r=>steps.push(`「${r.n}」煮好馬上吃最好吃，可以當開伙那天的晚餐，或之後想吃那天再現做。`));
-  (S.plan.fancy||[]).filter(f=>f.si===si).forEach(f=>steps.push(`「${RX[f.id].n}」是其中一餐的主食，想吃那天再現做。`));
-  steps.push(`「${RX[s.veg].n}」之後每天做一份，5 分鐘。`);
-  const t=items.reduce((a,r)=>a+r.min,0);
-  return `<details class="flow"><summary>開伙順序（大約 ${Math.round(t*.75/5)*5} 分鐘）</summary><ol>${steps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></details>`;
+  const s=S.plan.sessions[si], st=RX[s.staple];
+  const items=batchOf(S.plan,si).filter(r=>r.cook!=='fresh'||!isFresh(r));
+  const lanes={E:[],K:[],P:[],N:[]};
+  const later=[];
+  // 主食先放
+  const stT=tagOf(st).t;
+  if(stT==='E'||stT==='K') lanes[stT].push({r:st,note:'主食'}); else later.push(`主食「${st.n}」想吃那餐再煮，3 分鐘就好。`);
+  for(const r of items){
+    const t=tagOf(r);
+    if(r.cook==='fresh'){ later.push(`「${r.n}」煮好馬上吃最好吃，可以當開伙那天的晚餐，或想吃那天再現做。`); continue; }
+    lanes[t.t].push({r});
+  }
+  // 快煮鍋排太多、電鍋比較空：燉的、煮湯的可以搬到電鍋
+  const sum=l=>lanes[l].reduce((a,x)=>a+x.r.min,0);
+  for(const x of [...lanes.K]){ const g=tagOf(x.r); if((g.m==='S'||g.m==='T')&&sum('K')>sum('E')+15&&lanes.K.length>1){ lanes.K.splice(lanes.K.indexOf(x),1); lanes.E.push({...x,moved:true}); } }
+  const rows=[]; let total=0;
+  for(const l of ['E','K','P','N']){ let t=0; for(const x of lanes[l]){ rows.push({at:t,l,x}); t+= l==='N'?Math.min(x.r.min,10):x.r.min; } total=Math.max(total,t); }
+  rows.sort((a,b)=>a.at-b.at||'EKPN'.indexOf(a.l)-'EKPN'.indexOf(b.l));
+  const seq=[...lanes.E,...lanes.K,...lanes.P,...lanes.N].reduce((a,x)=>a+x.r.min,0);
+  const lines=rows.map(({at,l,x})=>`<li><b>${at} 分</b>　${TOOL[l]}：${x.note?'主食 ':''}「${esc(x.r.n)}」（${x.r.min} 分鐘）${x.moved?'<span class="small muted">（快煮鍋排太滿，改用電鍋）</span>':''}</li>`);
+  lines.push(`<li><b>${total} 分</b>　全部完成，分裝成幾盒，放涼再冰。</li>`);
+  later.forEach(t=>lines.push(`<li>${esc(t)}</li>`));
+  (S.plan.fancy||[]).filter(f=>f.si===si).forEach(f=>lines.push(`<li>「${esc(RX[f.id].n)}」是其中一餐的主食，想吃那天再現做。</li>`));
+  lines.push(`<li>「${esc(RX[s.veg].n)}」之後每天做一份，5 分鐘。</li>`);
+  const usesE=lanes.E.length>0;
+  return `<details class="flow"><summary>開伙時間表（三個鍋一起用，大約 ${total} 分鐘）</summary>
+    <p class="small muted" style="margin:6px 0 0">${seq>total?`如果一道一道輪流做要 ${seq} 分鐘，同時開工省下 ${seq-total} 分鐘。`:''}${usesE?' 電鍋是共用的，被占用時改用快煮鍋，時間會往後延。':''}${lanes.E.length>1?' 電鍋可以放蒸架，飯在下層、菜在上層一起蒸。':''}</p>
+    <ol class="tl">${lines.join('')}</ol></details>`;
 }
 function mealLine(si,n){
   const p=S.settings.people||1;
@@ -1647,6 +1709,10 @@ function renderSet(){
       <p class="small muted" style="margin:4px 0 10px">紀錄只存在這支手機的瀏覽器。換手機、清除瀏覽器資料之前，先下載備份檔；之後用「還原」選那個檔案就能救回來。${S.lastBackup?`上次備份：${S.lastBackup}。`:'還沒備份過。'}</p>
       <div class="chips"><button class="btn" id="btnBackup">下載備份檔</button><button class="btn" id="btnRestore">從備份檔還原</button></div>
       <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+      <h3 style="margin-top:14px">改版前的自動備份</h3>
+      <p class="small muted" style="margin:4px 0 8px">App 更新時，會先把你的紀錄自動存一份（保留最近 3 份）。新版有問題時可以還原。</p>
+      ${autoBackups().length?autoBackups().map(x=>`<div class="row"><span class="small">${esc(x.date)} 更新前（${esc(x.ver)}）</span><button class="btn tiny" data-restoreauto="${esc(x.key)}">還原這份</button></div>`).join(''):'<p class="small muted" style="margin:0">還沒有。下次 App 更新時會自動產生。</p>'}
+      <p class="small muted" style="margin:8px 0 0">目前版本：${APP_VERSION}</p>
     </section>
     <section class="card"><h2>重新開始</h2>
       <p class="small muted" style="margin:4px 0 10px">清掉所有熟練度紀錄、冰箱紀錄、價格和設定。</p>
@@ -1875,6 +1941,7 @@ function openHelp(){
       <li><b>沒照著煮也沒關係</b>：菜下面按「這次不煮」，材料會留在冰箱，可以按「幫我換」。冰箱頁的「用冰箱的東西重新排」會只換還沒煮的菜。</li>
       <li><b>我另外買的</b>：在冰箱頁記下清單外多買的東西和價格，會算進花費，也會建議可以做的菜。</li>
       <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
+      <li><b>菜的標記</b>：每道菜下面有「做法・用什麼鍋・口味」，例如「熱炒・平底鍋・醬燒」。抽菜時會讓同一次開伙的做法和口味不重複，電鍋、快煮鍋、平底鍋分開用，可以同時開工。</li>
       <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
       <li><b>心得</b>：按「煮好了」後可以寫這次的心得。下次打開那道菜，最上面會顯示上次的心得，下面有每一次的紀錄（第幾次、哪一天）。</li>
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
@@ -1975,7 +2042,7 @@ function openRecipe(id){
     <div class="grab"></div>
     <div><h2 id="st" style="font-size:22px">${esc(r.n)}</h2>
       <div class="meta" style="margin-top:4px">${badge(c)}${pips(c,true)}<span>煮過 <span class="num">${c}</span> 次</span></div>
-      <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${tool}</div></div>
+      <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${r.roles.includes('bf')?tool:tagText(r)}</div></div>
     ${removed.length?`<div class="tip"><b>這次少了：</b>${removed.map(k=>esc(ING[k][0])).join('、')}（不吃或買不到）。步驟裡看到它就跳過，照樣煮。</div>`:''}
     ${notesOf(id)[0]?`<div class="tip"><b>上次（第 ${notesOf(id)[0].n} 次，${fmtDate(notesOf(id)[0].date)}）的心得：</b>${esc(notesOf(id)[0].text)}</div>`:''}
     <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
@@ -2085,6 +2152,11 @@ document.addEventListener('click',e=>{
   if(t.dataset.askstep){ const [id,i]=t.dataset.askstep.split('|'); openAsk(`問 Claude：${RX[id].n} 第 ${+i+1} 步`,askRecipeText(id,+i)); return; }
   if(t.dataset.asking){ const k=t.dataset.asking; const it=shopping(S,S.plan).items.find(x=>x.id===k); openAsk(`問 Claude：${ING[k][0]}`,askIngText(k,it?it.users:[])); return; }
   if(t.dataset.askfridge){ const k=t.dataset.askfridge; openAsk(`問 Claude：${ING[k][0]}怎麼煮`,askFridgeText(k)); return; }
+  if(t.dataset.restoreauto){ const raw=(()=>{ try{ return localStorage.getItem(t.dataset.restoreauto); }catch(e){ return null; } })();
+    if(!raw){ toast('這份備份找不到了'); return; }
+    if(!window.confirm('要還原成這份備份嗎？現在的紀錄會被換掉（還原前會先自動備份現在的）。')) return;
+    autoBackupIfUpgraded(JSON.stringify(S),'還原前');
+    S=merge(JSON.parse(raw)); S.appVersion=APP_VERSION; save(); render(); toast('已還原'); return; }
   if(t.dataset.unav){ const k=t.dataset.unav; const on=!(S.unavail||[]).includes(k); S.unavail=on?[...(S.unavail||[]),k]:S.unavail.filter(x=>x!==k); save(); render();
     if(on&&!GARNISH.has(k)){ const hit=planSlots().find(x=>!cookedEv(x.id).length&&RX[x.id].use[k]); if(hit) openSuggest({title:`${ING[k][0]}買不到`,intro:`「${RX[hit.id].n}」需要它，做不了。這幾道只用已經買的或冰箱有的東西就能做：`,role:hit.role==='soup'?'soup':hit.role,targetKey:hit.key}); }
     else if(on) toast(`${ING[k][0]}是配料，菜照煮就好`);
@@ -2166,6 +2238,8 @@ new MutationObserver(redrawWheels).observe(document.documentElement,{attributes:
 
 // ---------- 啟動
 const local=loadLocal(); if(local) S=merge(local);
+if(local && local.appVersion!==APP_VERSION){ try{ autoBackupIfUpgraded(JSON.stringify(local),local.appVersion); }catch(e){} }
+S.appVersion=APP_VERSION; if(local) save();
 if(!(local&&local.settings&&local.settings.fancyV===2)){ S.settings.fancy=.5; S.settings.fancyV=2; save(); }
 if(!S.weekStart){ S.weekStart=iso(new Date()); save(); }
 render();
