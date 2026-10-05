@@ -178,6 +178,15 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .bars{display:flex;gap:10px;align-items:flex-end;min-height:120px;padding-top:6px}
 .barcol{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}
 .barcol i{display:block;width:100%;max-width:40px;border-radius:6px 6px 0 0}
+.tag.ok{background:var(--leaf-soft);color:var(--leaf)}
+.tag.warn{background:var(--tomato-soft);color:var(--tomato)}
+.tag.skip{border:1px solid var(--line);color:var(--muted);text-decoration:line-through}
+.item.gone .nm{color:var(--muted);text-decoration:line-through}
+.banner{background:var(--tomato-soft);border-color:var(--tomato)}
+.banner .row{font-size:14px}
+.sugg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
+.sugg:first-of-type{border-top:0}
+.ctrl button.target{background:var(--tomato);border-color:var(--tomato);color:#fff}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
 /* settings */
@@ -186,7 +195,7 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 
 /* bottom nav */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));z-index:10}
-nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
 nav.tabs button{border:0;background:none;border-radius:12px;padding:6px 2px;font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
 nav.tabs button svg{width:22px;height:22px}
 nav.tabs button[aria-selected="true"]{color:var(--tomato);background:var(--tomato-soft)}
@@ -228,6 +237,7 @@ nav.tabs button[aria-selected="true"]{color:var(--tomato);background:var(--tomat
 
   <main id="tab-spin" class="stack"></main>
   <main id="tab-shop" class="stack" hidden></main>
+  <main id="tab-fridge" class="stack" hidden></main>
   <main id="tab-skill" class="stack" hidden></main>
   <main id="tab-set" class="stack" hidden></main>
   <p class="foot" id="sync"></p>
@@ -236,6 +246,7 @@ nav.tabs button[aria-selected="true"]{color:var(--tomato);background:var(--tomat
 <nav class="tabs" aria-label="分頁"><div class="in" role="tablist">
   <button role="tab" data-tab="spin" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4M12 12 5.6 18.4M12 12H3"/></svg>抽菜</button>
   <button role="tab" data-tab="shop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7h-9a2 2 0 0 1-2-1.7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>採買</button>
+  <button role="tab" data-tab="fridge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 10h14M9 6v2M9 13v3"/></svg>冰箱</button>
   <button role="tab" data-tab="skill" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>熟練度</button>
   <button role="tab" data-tab="set" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>設定</button>
 </div></nav>
@@ -926,7 +937,7 @@ function challengeFor(r,n){
 function defaultState(){
   return {
     v:2,
-    settings:{budget:1200, meals:8, people:1, fancy:1, maxNewSea:2, soy:3, soyPrice:38, fruit:150, rice:60, breakfast:false, motion:true},
+    settings:{budget:1200, meals:8, people:1, fancy:.5, fancyV:2, maxNewSea:2, soy:3, soyPrice:38, fruit:150, rice:60, breakfast:false, motion:true},
     dislikes:[],   // 不吃的食材 id
     owned:[...START_OWNED],
     prices:{},
@@ -936,6 +947,16 @@ function defaultState(){
     pantry:{},
     bought:{},    // 這週實際買了幾包（促銷多買時可以改）
     weekStart:null, // 這週從哪天開始
+    weekNo:0,       // 第幾週（每兩週一次的特色主食用）
+    purchases:{},   // 這週實際買的：{食材 id 或 _soy / sea_xx: {qty, paid}}
+    extras:[],      // 另外買的：[{id, name, qty, paid}]
+    receipt:null,   // 發票總額（有填就以這個為準）
+    unavail:[],     // 這週買不到的食材
+    cookEvents:[],  // 這週煮了什麼：[{id, servings, meals, date}]
+    consumed:[],    // 現做現吃用掉的（主食、青菜、現煮的菜）：[{id, servings}]
+    eaten:{},       // 煮好的菜吃掉幾餐
+    skipped:[],     // 這次不煮的菜
+    adjust:{},      // 手動調整冰箱數量
     history:[],   // 每週結算報告
     weekLog:[],   // 這週按過「煮好了」的菜
     seaWeek:[],   // 這週買的調味料
@@ -1039,7 +1060,8 @@ function scorePlan(S,plan){
   if(special===0) rep+=15; if(special>spMax) rep+=(special-spMax)*10;
   for (const s of plan.sessions) if(mk.filter(k=>RX[s[k]].roles.includes('special')).length>1) rep+=10;
   for (const k of ['pasta','noodle','beef_hotpot','shrimp']) if(mains.filter(id=>RX[id].use[k]).length>1) rep+=8;
-  return {score: ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5 - seaOver*80, sh};
+  const fb = S._fridge ? fridgeBonus(plan,S._fridge) : 0;
+  return {score: fb + ws*8 - pen - sh.waste*.5 + sh.shared*4 + sh.pantryUse*.3 - rep - sh.newSea.length*5 - seaOver*80, sh};
 }
 function pick(S,role,exclude,rnd){
   const pool=ACTIVE.filter(r=>fitsRole(r,SLOT_ROLE[role]||role)&&!exclude.has(r.id)).map(r=>[r,weight(S,r)]).filter(x=>x[1]>0);
@@ -1058,7 +1080,7 @@ function randomPlan(S,base,rnd){
     const id=pick(S,role,used,rnd); plan.sessions[si][role]=id; used.add(id);
   }
   // 特色主食：一週 0–2 次，每次換掉某一次開伙其中一餐的主食
-  const nf=Math.max(0,Math.min(2,S.settings.fancy??1)); plan.fancy=[];
+  const nf=fancyCount(S); plan.fancy=[];
   for(let i=0;i<nf;i++){
     const lk='f.'+i, bfz=base?.fancy?.[i];
     if(locks[lk]&&bfz&&RX[bfz.id]){ plan.fancy.push({...bfz}); used.add(bfz.id); continue; }
@@ -1068,6 +1090,8 @@ function randomPlan(S,base,rnd){
   if(S.settings.breakfast){ const a=pick(S,'bf',used,rnd); used.add(a); plan.bf=[a,pick(S,'bf',used,rnd)]; }
   return plan;
 }
+// 0.5 = 每兩週一次（單週有、雙週沒有）
+function fancyCount(S){ const f=S.settings.fancy??.5; return f===.5 ? ((S.weekNo||0)%2===0?1:0) : Math.max(0,Math.min(2,Math.round(f))); }
 function rerollFancy(S,plan,i,rnd=Math.random){
   const cur=plan.fancy[i].id, used=new Set(planIds(plan));
   const opts=ACTIVE.filter(r=>r.roles.includes('fancy')&&!used.has(r.id)&&weight(S,r)>0).map(r=>{
@@ -1110,7 +1134,7 @@ function save(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){ setSync('這個瀏覽器沒辦法存紀錄，請不要用無痕模式'); }
 }
 function iso(d){ const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
-function ensurePlan(){ if(!S.plan||!S.plan.sessions.every(s=>ROLES.every(r=>RX[s[r]]&&!dislikedBy(S,RX[s[r]])))||(S.plan.fancy||[]).length!==Math.max(0,Math.min(2,S.settings.fancy??1))||(S.plan.fancy||[]).some(f=>!RX[f.id]||dislikedBy(S,RX[f.id]))){ S.plan=generate(S,S.plan&&S.plan.locks?{...S.plan,locks:{}}:null); S.checked={}; } }
+function ensurePlan(){ if(!S.plan||!S.plan.sessions.every(s=>ROLES.every(r=>RX[s[r]]&&!dislikedBy(S,RX[s[r]])))||(S.plan.fancy||[]).length!==fancyCount(S)||(S.plan.fancy||[]).some(f=>!RX[f.id]||dislikedBy(S,RX[f.id]))){ S.plan=generate(S,S.plan&&S.plan.locks?{...S.plan,locks:{}}:null); S.checked={}; } }
 
 // ---------- 小工具
 const $=s=>document.querySelector(s);
@@ -1177,7 +1201,20 @@ let mode='week';
 let DAY_ROLES=['main','side','veg'];
 const DAY_LABEL={staple:'主食',main:'主菜',main2:'主菜',side:'配菜',soup:'湯',veg:'青菜'};
 function dayRoles(){ const p=S.settings.people||1; return ['staple','main',...(p>=3?['main2']:[]),'side',...(p>=5?['soup']:[]),'veg']; }
-function dayPool(role){
+function availToday(id,role){
+  const r=RX[id]; if(!r) return false;
+  if((S.skipped||[]).includes(id)||blockedBy(id).length) return false;
+  if(role==='staple'&&!r.roles.includes('fancy')) return true;
+  if(role==='veg') return true;
+  if(isFresh(r)){ const sl=slotOf(id); return ((S.eaten||{})[id]||0) < (sl?sl.meals:1); }
+  return mealsLeft(id)>0;
+}
+function dayPool(role,all){
+  const raw=dayPoolAll(role); if(all) return raw;
+  const ok=raw.filter(id=>availToday(id,role));
+  return ok.length?ok:raw;
+}
+function dayPoolAll(role){
   const ss=S.plan.sessions, key=role==='main2'?'main':role;
   if(role==='staple') return [...new Set([...ss.map(s=>s.staple),...(S.plan.fancy||[]).map(f=>f.id)])].filter(id=>RX[id]);
   const ids = key==='main' ? ss.flatMap(s=>SLOTS.filter(k=>SLOT_ROLE[k]==='main').map(k=>s[k])) : ss.map(s=>s[key]);
@@ -1185,7 +1222,7 @@ function dayPool(role){
 }
 function todayValid(){
   DAY_ROLES=dayRoles();
-  const t=S.today; return t && t.date===iso(new Date()) && DAY_ROLES.every(r=>dayPool(r).includes(t[r])) && (!t.main2 || t.main2!==t.main);
+  const t=S.today; return t && t.date===iso(new Date()) && DAY_ROLES.every(r=>dayPoolAll(r).includes(t[r])) && (!t.main2 || t.main2!==t.main);
 }
 function pickDay(role,avoid,also){
   if(role==='staple'){ // 大部分吃基本主食，偶爾抽到特色主食
@@ -1222,13 +1259,37 @@ async function spinDay(only){
   daySpinning=false; dayHidden.clear(); render();
 }
 let dayHidden=new Set();
+function dayMeta(id,r){
+  const x=RX[id];
+  if(x.roles.includes('fancy')) return '今天換成特色主食，現做';
+  if(r==='staple') return '備好的主食，加熱就好';
+  if(r==='veg') return '5 分鐘現做';
+  if(isFresh(x)) return '現煮現吃';
+  const left=mealsLeft(id);
+  return left>0?`冰箱拿出來加熱 · 還剩 ${+left.toFixed(1)} 餐`:'<span style="color:var(--tomato)">還沒煮好，要先煮</span>';
+}
+function ateToday(){
+  const t=S.today; if(!t||t.ate) return;
+  const rec=[];
+  for(const r of dayRoles()){ const id=t[r]; if(!id||!RX[id]) continue;
+    const x=RX[id];
+    if(isFresh(x)){ const sv=(r==='staple'||r==='veg')?P():P(); S.consumed.push({id,servings:sv}); rec.push(['c',id]); }
+    S.eaten[id]=((S.eaten||{})[id]||0)+1; rec.push(['e',id]);
+  }
+  t.ate=true; t.rec=rec; save(); render(); toast('記下來了，冰箱已經更新');
+}
+function undoAte(){
+  const t=S.today; if(!t||!t.ate) return;
+  for(const [k,id] of t.rec||[]){ if(k==='e') S.eaten[id]=Math.max(0,(S.eaten[id]||0)-1); else { const i=S.consumed.map(x=>x.id).lastIndexOf(id); if(i>=0) S.consumed.splice(i,1); } }
+  t.ate=false; t.rec=[]; save(); render();
+}
 function dayRowsHTML(){
   const t=S.today;
   const row=(r)=>{
     const id=t[r], pool=dayPool(r), hid=dayHidden.has(r);
     return `<div class="slot"><span class="role ${r.startsWith('main')?'main':(r==='staple'&&RX[id].roles.includes('fancy'))?'fancy':r}">${(r==='staple'&&RX[id].roles.includes('fancy'))?'特色主食':DAY_LABEL[r]}</span>
       <div class="mid"><button class="dname ${hid?'hide':''}" id="day-${r}" ${hid?'':`data-open="${id}"`}>${hid?'？？？':esc(RX[id].n)}</button>
-      <span class="meta">${hid?'抽籤中':(RX[id].roles.includes('fancy')?'今天換成特色主食，現做':r==='staple'?'備好的主食，加熱就好':r==='veg'?'5 分鐘現做':(RX[id].cook==='fresh'?'這道現煮比較好吃':'冰箱拿出來加熱'))}</span></div>
+      <span class="meta">${hid?'抽籤中':dayMeta(id,r)}</span></div>
       <div class="icobtns"><button class="ico" data-dayswap="${r}" ${pool.length<2||daySpinning?'disabled':''} aria-label="換${DAY_LABEL[r]}">換</button></div></div>`;
   };
   DAY_ROLES=dayRoles();
@@ -1243,10 +1304,12 @@ function dayHTML(){
   const has=todayValid();
   return `<section class="card wheelcard">
       <div class="wheelwrap small"><div class="pointer"></div><canvas id="wheel2" aria-label="今天吃什麼轉盤"></canvas><div class="hub" id="hub2"></div></div>
-      <span class="small muted">從這週煮的菜裡，抽今天這一餐</span>
+      <span class="small muted">從這週煮好、還有剩的菜裡，抽今天這一餐</span>
       <div class="spinrow"><button class="btn primary big" id="btnDay" ${daySpinning?'disabled':''}>${daySpinning?'轉盤轉動中…':has?'整餐重抽':'抽今天這一餐'}</button></div>
     </section>
-    ${has?`<section class="card"><div class="sess-head"><h2>今天 ${new Date().getMonth()+1}/${new Date().getDate()}（${'日一二三四五六'[new Date().getDay()]}）吃這個</h2><span class="muted small">不喜歡哪一樣，就按旁邊的「換」</span></div><div id="dayRows">${dayRowsHTML()}</div></section>`:''}`;
+    ${has?`<section class="card"><div class="sess-head"><h2>今天 ${new Date().getMonth()+1}/${new Date().getDate()}（${'日一二三四五六'[new Date().getDay()]}）吃這個</h2><span class="muted small">不喜歡哪一樣，就按旁邊的「換」</span></div><div id="dayRows">${dayRowsHTML()}</div>
+      <div style="margin-top:12px">${S.today.ate?'<button class="btn on big" id="btnUndoAte">已記錄吃了這餐（按一下取消）</button>':'<button class="btn primary big" id="btnAte">吃了這餐</button>'}</div>
+      <p class="small muted" style="margin:6px 0 0">按「吃了這餐」，冰箱和剩下的餐數會跟著更新，之後只會抽還有剩的菜。</p></section>`:''}`;
 }
 async function spinWeek(){
   if(spinning) return;
@@ -1279,7 +1342,7 @@ function renderHeader(){
   const sh=shopping(S,S.plan), over=sh.total>S.settings.budget;
   const pill=$('#budgetPill'); pill.className='pill'+(over?' over':''); pill.innerHTML=`本週約 <span class="num">${money(sh.total)}</span>`;
   const h=new Date().getHours();
-  $('#greet').textContent = tab==='skill'?'我的熟練度' : tab==='shop'?'採買清單' : tab==='set'?'設定' : (h<11?'早安，這週想吃什麼？':h<17?'這週想吃什麼？':'晚上好，這週想吃什麼？');
+  $('#greet').textContent = tab==='skill'?'我的熟練度' : tab==='shop'?'採買清單' : tab==='fridge'?'冰箱' : tab==='set'?'設定' : (h<11?'早安，這週想吃什麼？':h<17?'這週想吃什麼？':'晚上好，這週想吃什麼？');
   const now=new Date(), wd='日一二三四五六'[now.getDay()];
   const ws=S.weekStart?new Date(S.weekStart+'T00:00:00'):now, we=new Date(ws.getTime()+6*864e5);
   const dayN=Math.floor((new Date(iso(now)+'T00:00:00')-ws)/864e5)+1;
@@ -1289,6 +1352,19 @@ function renderHeader(){
 }
 function slotLabel(k){ return SLOT_ROLE[k]==='main'?'主菜':ROLE_LABEL[k]; }
 let moveSel=null;
+function statusTags(id){
+  const out=[], c=cookedEv(id).length, left=mealsLeft(id), bl=blockedBy(id), lg=lackGarnish(id);
+  if(c) out.push(isFresh(RX[id])?'<span class="tag ok">煮過了</span>':`<span class="tag ok">煮好了 · 剩 ${+left.toFixed(1)} 餐</span>`);
+  if((S.skipped||[]).includes(id)) out.push('<span class="tag skip">這次不煮</span>');
+  if(bl.length&&!c) out.push(`<span class="tag warn">買不到${bl.map(k=>esc(ING[k][0])).join('、')}</span>`);
+  if(lg.length) out.push(`<span class="tag new">少了${lg.map(k=>esc(ING[k][0])).join('、')}，照煮</span>`);
+  return out.join('');
+}
+function statusCtrl(key,id){
+  if(cookedEv(id).length) return '';
+  const sk=(S.skipped||[]).includes(id), need=sk||blockedBy(id).length;
+  return `<button data-skip="${id}">${sk?'還是要煮':'這次不煮'}</button>${need?`<button class="target" data-sug="${key}">幫我換</button>`:''}`;
+}
 function slotHTML(si,k){
   const key=si+'.'+k, id=S.plan.sessions[si][k], r=RX[id], locked=!!S.plan.locks[key], role=SLOT_ROLE[k];
   if(hidden.has(key)) return `<div class="slot"><span class="role ${role}">${slotLabel(k)}</span><div class="mid"><span class="dname hide">？？？</span><span class="meta">轉盤抽籤中</span></div></div>`;
@@ -1299,12 +1375,12 @@ function slotHTML(si,k){
     const mk=moveSel.split('.')[1];
     if(moveSel===key) ctrl=`<button class="on" data-move="${key}">取消調換</button>`;
     else if(SLOT_ROLE[mk]===role) ctrl=`<button class="target" data-moveto="${key}">跟這道換</button>`;
-  } else ctrl=`<button data-swap="${si}|${k}" ${locked||spinning?'disabled':''}>換一道</button><button data-move="${key}" ${spinning?'disabled':''}>調換位置</button><button class="${locked?'on':''}" data-lock="${key}">${locked?'已鎖定':'鎖定'}</button>`;
+  } else ctrl=statusCtrl(key,id)+`<button data-swap="${si}|${k}" ${locked||spinning?'disabled':''}>換一道</button><button data-move="${key}" ${spinning?'disabled':''}>調換位置</button><button class="${locked?'on':''}" data-lock="${key}">${locked?'已鎖定':'鎖定'}</button>`;
   return `<div class="slot ${moveSel===key?'sel':''}">
     <span class="role ${role}">${slotLabel(k)}</span>
     <div class="mid">
       <button class="dname" data-open="${id}" id="dn-${si}-${k}">${esc(r.n)}</button>
-      <span class="meta">${badge(c)}${pips(c)}${r.roles.includes('special')?'<span class="tag sp">特別</span>':''}${r.mem?'<span class="tag mem">回憶菜</span>':''}${r.ai||r.extra?'<span class="tag new">新加入</span>':''}${buy}</span>
+      <span class="meta">${badge(c)}${pips(c)}${r.roles.includes('special')?'<span class="tag sp">特別</span>':''}${r.mem?'<span class="tag mem">回憶菜</span>':''}${r.ai||r.extra?'<span class="tag new">新加入</span>':''}${buy}${statusTags(id)}</span>
       <span class="meta">${Math.round(n)} 份 · 約 <span class="num">${dishCost(id,n)}</span> 元 · ${r.min} 分鐘</span>
       ${ctrl?`<div class="ctrl">${ctrl}</div>`:''}
     </div></div>`;
@@ -1314,12 +1390,12 @@ function fancyHTML(i){
   if(hidden.has(key)) return `<div class="slot"><span class="role fancy">特色主食</span><div class="mid"><span class="dname hide">？？？</span><span class="meta">轉盤抽籤中</span></div></div>`;
   const c=cooked(S,f.id), n=S.settings.people||1;
   const buy=r.sea.filter(x=>!S.owned.includes(x)).map(x=>`<span class="tag buy">要買${SEA[x][0]}</span>`).join('');
-  const ctrl=moveSel?'':`<button data-fswap="${i}" ${locked||spinning?'disabled':''}>換一道</button><button data-fmove="${i}" ${spinning?'disabled':''}>移到${f.si?'第一次':'第二次'}開伙</button><button class="${locked?'on':''}" data-lock="${key}">${locked?'已鎖定':'鎖定'}</button>`;
+  const ctrl=moveSel?'':statusCtrl(key,f.id)+`<button data-fswap="${i}" ${locked||spinning?'disabled':''}>換一道</button><button data-fmove="${i}" ${spinning?'disabled':''}>移到${f.si?'第一次':'第二次'}開伙</button><button class="${locked?'on':''}" data-lock="${key}">${locked?'已鎖定':'鎖定'}</button>`;
   return `<div class="slot">
     <span class="role fancy">特色主食</span>
     <div class="mid">
       <button class="dname" data-open="${f.id}" id="dn-f-${i}">${esc(r.n)}</button>
-      <span class="meta">${badge(c)}${pips(c)}${r.mem?'<span class="tag mem">回憶菜</span>':''}${buy}</span>
+      <span class="meta">${badge(c)}${pips(c)}${r.mem?'<span class="tag mem">回憶菜</span>':''}${buy}${statusTags(f.id)}</span>
       <span class="meta">換掉其中一餐的主食 · ${n} 份 · 約 <span class="num">${dishCost(f.id,n)}</span> 元 · ${r.min} 分鐘</span>
       ${ctrl?`<div class="ctrl">${ctrl}</div>`:''}
     </div></div>`;
@@ -1356,6 +1432,15 @@ function sessionHTML(si){
     ${flowFor(si)}
   </section>`;
 }
+function problemBanner(){
+  const sl=planSlots().filter(x=>!cookedEv(x.id).length);
+  const bad=sl.filter(x=>blockedBy(x.id).length), sk=sl.filter(x=>(S.skipped||[]).includes(x.id));
+  if(!bad.length&&!sk.length) return '';
+  return `<section class="card banner">
+    ${bad.map(x=>`<div class="row"><span>「${esc(RX[x.id].n)}」做不了：買不到${blockedBy(x.id).map(k=>esc(ING[k][0])).join('、')}</span><button class="btn tiny primary" data-sug="${x.key}">幫我換</button></div>`).join('')}
+    ${sk.map(x=>`<div class="row"><span>「${esc(RX[x.id].n)}」這次不煮，材料會留在冰箱</span><button class="btn tiny" data-sug="${x.key}">用冰箱的東西換一道</button></div>`).join('')}
+  </section>`;
+}
 function renderSpin(){
   const seg=`<div class="seg" role="tablist" aria-label="抽菜模式">
       <button role="tab" data-mode="week" aria-selected="${mode==='week'}">第一輪・這週煮什麼</button>
@@ -1379,6 +1464,7 @@ function renderSpin(){
       </div>
       <span class="small muted">每道菜下面可以「換一道」、「調換位置」或「鎖定」。鎖定的菜重抽時不會被換掉。</span>
     </section>
+    ${problemBanner()}
     <div id="menuArea" class="stack">${sessionHTML(0)}${sessionHTML(1)}${bf}</div>
     <p class="small muted" style="margin:0 4px">轉盤抽的是「要煮的菜」，要買的食材會自動整理在「採買」頁。煮好以後，到「第二輪」抽每天吃哪幾樣。</p>
     <button class="btn" id="btnNewWeek">這週吃完了，結算並開始下一週</button>`;
@@ -1393,39 +1479,76 @@ function renderMenuOnly(revealedKey){
   renderHeader();
 }
 function renderShop(){
-  const sh=shopping(S,S.plan);
+  const sh=shopping(S,S.plan), sp=spendNow();
   const order=['肉類','海鮮冷凍','蛋豆奶','蔬菜','辛香料','主食乾貨'];
-  const row=(key,nm,right,note)=>{ const done=!!S.checked[key];
-    return `<label class="item ${done?'done':''}"><input type="checkbox" data-check="${key}" ${done?'checked':''}><span class="nm">${nm}</span>${right}${note?`<span class="note">${note}</span>`:''}</label>`; };
-  const buy=sh.items.filter(i=>i.packs>0), have=sh.items.filter(i=>i.packs===0);
-  const g={}; buy.forEach(it=>(g[ING[it.id][3]]=g[ING[it.id][3]]||[]).push(it));
+  const pur=S.purchases||{};
+  const row=(key,name,est,note,qtyDefault,canUnavail)=>{
+    const x=pur[key], un=(S.unavail||[]).includes(key);
+    return `<div class="item ${x?'done':''} ${un?'gone':''}">
+      <input type="checkbox" data-buy="${key}" data-q="${qtyDefault}" data-est="${est}" ${x?'checked':''} ${un?'disabled':''} aria-label="買了${esc(name)}">
+      <span class="nm">${name}</span>
+      ${x?`<span class="price">實付 $<input type="number" min="0" step="1" id="paid-${key}" data-paid="${key}" value="${Math.round(x.paid)}" aria-label="實付金額"></span>`:`<span class="price muted">約 $${Math.round(est)}</span>`}
+      <span class="note">${note}${x&&ING[key]?`<span class="qty">買了 <button class="btn tiny" data-bq="${key}|-1" aria-label="少一包">−</button><b class="num">${x.qty}</b> 包<button class="btn tiny" data-bq="${key}|1" aria-label="多一包">＋</button></span>`:''}
+      ${!x&&canUnavail?`<button class="btn tiny ${un?'no':''}" data-unav="${key}">${un?'買不到（按一下取消）':'買不到'}</button>`:''}</span>
+    </div>`;
+  };
+  const items=sh.items.filter(i=>i.packs>0);
+  const listed=new Set(items.map(i=>i.id));
+  const extraBought=Object.keys(pur).filter(k=>ING[k]&&!listed.has(k));
+  const g={}; items.forEach(it=>(g[ING[it.id][3]]=g[ING[it.id][3]]||[]).push(it));
   let h=order.filter(x=>g[x]).map(x=>`<div class="group"><h3>${x}</h3>${g[x].map(it=>{
     const [nm,pack]=ING[it.id];
-    const left=it.left>=0.15?(keeps(it.id)?' · 會剩一些，留到下週':' · 會剩一些，記得吃完'):'';
-    return row(it.id,`${esc(nm)} <span class="muted small">${esc(pack)}${it.packs>1?' × '+it.packs:''}</span>`,
-      `<span class="price">$<input type="number" min="0" step="1" id="price-${it.id}" data-price="${it.id}" value="${price(S,it.id)}" aria-label="${esc(nm)} 單價"></span>`,
-      `用在：${it.users.map(esc).join('、')}${it.have>0.05?' · 家裡還有一些':''}${left}`
-      + (S.checked[it.id]?`<span class="qty">實際買了 <button class="btn tiny" data-bq="${it.id}|-1" aria-label="少一包">−</button><b class="num">${S.bought?.[it.id]??it.packs}</b> 包<button class="btn tiny" data-bq="${it.id}|1" aria-label="多一包">＋</button>${(S.bought?.[it.id]??it.packs)>it.packs?' <span class="tag sp">多的會記進冰箱</span>':''}</span>`:''));
+    const un=(S.unavail||[]).includes(it.id);
+    const note=un?`<span style="color:var(--tomato)">這次買不到 · ${GARNISH.has(it.id)?'是配料，菜照煮':'到「抽菜」頁按「幫我換」'}</span>`:`用在：${it.users.map(esc).join('、')}${it.have>0.05?' · 家裡還有一些':''}`;
+    return row(it.id,`${esc(nm)} <span class="muted small">${esc(pack)}${it.packs>1?' × '+it.packs:''}</span>`,it.packs*price(S,it.id),note,it.packs,true);
   }).join('')}</div>`).join('');
-  h+=`<div class="group"><h3>豆漿、水果、米（每週固定）</h3>${sh.fixed.map(f=>row(f.id,`${f.n}${f.qty>1?' × '+f.qty:''}`,`<span class="price">$${f.cost}</span>`,'')).join('')}</div>`;
-  if(sh.newSea.length) h+=`<div class="group"><h3>調味料</h3>${sh.newSea.map(x=>row('sea_'+x.id,SEA[x.id][0],`<span class="price">$${x.cost}</span>`,'勾了就會記住你有，下週不再算錢')).join('')}</div>`;
-  if(have.length) h+=`<div class="group"><h3>家裡已經有，不用買</h3><p class="small muted" style="margin:4px 0 0">${have.map(i=>esc(ING[i.id][0])).join('、')}</p></div>`;
-  const left=buy.filter(i=>!S.checked[i.id]).length;
+  if(extraBought.length) h+=`<div class="group"><h3>已經買了（菜單改過）</h3>${extraBought.map(k=>row(k,esc(ING[k][0]),pur[k].paid,'',pur[k].qty,false)).join('')}</div>`;
+  h+=`<div class="group"><h3>豆漿、水果、米（每週固定）</h3>${sh.fixed.map(f=>row(f.id,`${f.n}${f.qty>1?' × '+f.qty:''}`,f.cost,'',1,false)).join('')}</div>`;
+  if(sh.newSea.length) h+=`<div class="group"><h3>調味料</h3>${sh.newSea.map(x=>row('sea_'+x.id,SEA[x.id][0],x.cost,'勾了就會記住你有，下週不再算錢',1,false)).join('')}</div>`;
+  const todo=items.filter(i=>!pur[i.id]&&!(S.unavail||[]).includes(i.id)).length;
   $('#tab-shop').innerHTML=`
     <section class="card">
-      <div class="trip-h"><h2>這週要買的</h2><span class="small muted">還有 ${left} 樣沒買</span></div>
+      <div class="trip-h"><h2>這週花了</h2><span class="num" style="font-size:20px">${money(sp.total)}</span></div>
+      <p class="small muted" style="margin:4px 0 8px">${sp.receipt?'照你填的發票總額。':sp.estimated?'還沒記帳，先顯示估計值。勾「買了」以後改成實際付的錢。':'照你記帳的金額。'} 預算 ${money(S.settings.budget)}${sp.estimated?'':sp.total>S.settings.budget?`，<b style="color:var(--tomato)">多了 ${money(sp.total-S.settings.budget)}</b>`:`，還剩 ${money(S.settings.budget-sp.total)}`}</p>
+      <div class="row"><label for="receipt">發票總額（選填，有填就以這個為準）</label><span class="price">$<input type="number" min="0" step="1" id="receipt" data-receipt="1" value="${S.receipt||''}" placeholder="—" style="width:84px"></span></div>
+    </section>
+    <section class="card">
+      <div class="trip-h"><h2>這週要買的</h2><span class="small muted">還有 ${todo} 樣沒買</span></div>
       ${h}
-      <div class="total"><span>結帳大約</span><span class="num">${money(sh.cash)}</span></div>
+      <div class="total"><span>預估結帳</span><span class="num">${money(sh.cash)}</span></div>
+      <p class="small muted" style="margin:8px 0 0">勾「買了」以後可以改成實際付的錢和包數，改過的價格下次會照著估。買不到的按「買不到」。清單上沒有、你自己多買的東西，到「冰箱」頁的「我另外買的」記下來。</p>
+    </section>`;
+}
+function renderFridge(){
+  const f=liveFridge(), order=['肉類','海鮮冷凍','蛋豆奶','蔬菜','辛香料','主食乾貨'];
+  const g={}; Object.keys(f).forEach(k=>(g[ING[k][3]]=g[ING[k][3]]||[]).push(k));
+  const amt=(k,v)=>v>=0.95?`約 ${+v.toFixed(1)} 包`:v>=0.4?'剩半包左右':'剩一點';
+  const list=order.filter(c=>g[c]).map(c=>`<div class="group"><h3>${c}</h3>${g[c].map(k=>`<div class="item"><span></span>
+    <span class="nm">${esc(ING[k][0])} <span class="muted small">${amt(k,f[k])}（1 包 = ${esc(ING[k][1])}）${PERISH.has(k)?' · 放不久，先吃':''}</span></span>
+    <span class="chips"><button class="btn tiny" data-adj="${k}|-1" aria-label="少一包">−</button><button class="btn tiny" data-adj="${k}|1" aria-label="多一包">＋</button><button class="btn tiny" data-empty="${k}">用完了</button></span></div>`).join('')}</div>`).join('');
+  const ideas=[...suggest('main',{k:3}),...suggest('side',{k:1}),...suggest('fancy',{k:1})].filter(c=>c.has.length).sort((a,b)=>a.miss.length-b.miss.length).slice(0,4);
+  const opts=Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('');
+  $('#tab-fridge').innerHTML=`
+    <section class="card">
+      <div class="trip-h"><h2>冰箱和櫃子現在有</h2><span class="small muted">${Object.keys(f).length} 樣</span></div>
+      <p class="small muted" style="margin:4px 0 0">會自己更新：勾「買了」就加進來，按「煮好了」「吃了這餐」就扣掉。數量不對可以按 − / ＋。</p>
+      ${list||'<p class="small muted">現在是空的。採買頁勾了「買了」，東西就會出現在這裡。</p>'}
     </section>
     <section class="card">
-      <p class="small muted" style="margin:0 0 10px">放得久的食材（冷凍肉、洋蔥、紅蘿蔔、罐頭、辛香料）沒用完會留到下週，下週就不用再買，所以第一週會比較貴。價格是全聯常見售價的估計，買完可以直接改成實際價格。</p>
-      <div class="chips"><button class="btn tiny" id="btnClearCheck">清除勾選</button></div>
+      <h2>我另外買的</h2>
+      <p class="small muted" style="margin:4px 0 10px">清單上沒有、你自己想買的東西記在這裡，會算進這週的花費，也會幫你想可以怎麼煮。</p>
+      <div class="row"><select id="exId" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit" aria-label="買了什麼"><option value="">其他（自己輸入名稱）</option>${opts}</select></div>
+      <div class="row"><input id="exName" placeholder="名稱（選「其他」才要填）" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit" aria-label="名稱"></div>
+      <div class="row"><label for="exQty">幾包</label><input type="number" id="exQty" value="1" min="1" step="1" style="width:70px"><label for="exPaid">花了</label><span class="price">$<input type="number" id="exPaid" min="0" step="1" placeholder="0" style="width:80px"></span><button class="btn tiny primary" id="btnExtra">記下來</button></div>
+      ${(S.extras||[]).length?`<div style="margin-top:8px">${S.extras.map((x,i)=>`<div class="item"><span></span><span class="nm">${esc(x.name)} × ${x.qty}</span><span class="chips"><span class="num">${money(x.paid||0)}</span><button class="btn tiny" data-delx="${i}">刪除</button></span></div>`).join('')}</div>`:''}
     </section>
     <section class="card">
-      <h2>冰箱和櫃子</h2>
-      <p class="small muted" style="margin:6px 0 10px">一週結束時，App 會用「你實際買的」減掉「你登記煮的」，自動記下剩下的食材，下週抽菜會優先用掉。放不久的葉菜、豆腐不會記。促銷多買的：清單上有的，勾了以後按「＋」改數量；清單上沒有的，用下面的選單加進來。</p>
-      ${Object.keys(S.pantry||{}).filter(k=>ING[k]).length?Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>`<div class="item"><span></span><span class="nm">${esc(ING[k][0])} <span class="muted small">約 ${v>=1?(+v.toFixed(1))+' 包':'剩一些'}（${esc(ING[k][1])}）</span></span><span class="chips"><button class="btn tiny" data-pq="${k}|-1" aria-label="少一包">−</button><button class="btn tiny" data-pq="${k}|1" aria-label="多一包">＋</button><button class="btn tiny" data-unpantry="${k}">用完了</button></span></div>`).join(''):'<p class="small muted" style="margin:0">目前沒有紀錄。</p>'}
-      <div class="row" style="margin-top:10px"><select id="pantryAdd" aria-label="選一樣促銷多買或家裡本來就有的食材" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('')}</select><button class="btn tiny" id="btnPantryAdd">加進冰箱</button></div>
+      <h2>冰箱的東西可以做</h2>
+      ${ideas.length?ideas.map(c=>`<div class="sugg"><button class="dname" data-open="${c.r.id}">${esc(c.r.n)}</button>
+        <span class="small">冰箱有：${c.has.map(k=>esc(ING[k][0])).join('、')}${c.miss.length?` · <span style="color:var(--tomato)">還要買：${c.miss.map(k=>esc(ING[k][0])).join('、')}</span>`:' · 不用再買'}</span>
+        <div class="chips"><button class="btn tiny" data-sugid="${c.r.id}">換進這週菜單</button></div></div>`).join(''):'<p class="small muted" style="margin:4px 0 0">冰箱裡的東西剛好都排進這週的菜了。</p>'}
+      <button class="btn primary" id="btnReplan" style="margin-top:10px">用冰箱的東西重新排還沒煮的菜</button>
+      <p class="small muted" style="margin:6px 0 0">已經煮好或吃過的菜不會動，只換還沒煮的。</p>
     </section>`;
 }
 function titleFor(m){ return m>=10?['出社會也不怕',null]:m>=6?['宿舍料理王',10]:m>=3?['家常菜高手',6]:m>=1?['小廚師',3]:['廚房新生',1]; }
@@ -1500,7 +1623,7 @@ function renderSet(){
       ${num('budget','每週預算（元）',st.budget,50)}
       <div class="row"><span>幾人份</span><span class="chips" style="align-items:center"><button class="btn tiny" id="peopleDn" aria-label="少一人">−</button><b class="num" style="min-width:28px;text-align:center">${st.people||1}</b><button class="btn tiny" id="peopleUp" aria-label="多一人">＋</button></span></div>
       <p class="small muted" style="margin:0">${(st.people||1)>=5?'5 人：每餐兩道主菜＋配菜＋湯＋青菜':(st.people||1)>=3?'3–4 人：每餐兩道主菜＋配菜＋青菜':'1–2 人：每餐一道主菜＋配菜＋青菜'}。改人數時會自動填入建議預算（${BUDGET_HINT[st.people||1].toLocaleString('en-US')} 元），你還是可以自己改。</p>
-      <div class="row"><span>特色主食（粥、麵、炒飯）每週幾次</span><span class="chips">${[0,1,2].map(n=>`<button class="btn tiny ${(st.fancy??1)===n?'on':''}" data-fancyn="${n}">${n} 次</button>`).join('')}</span></div>
+      <div class="row"><span>特色主食（粥、麵、炒飯）</span><span class="chips">${[[0,'不要'],[.5,'每兩週 1 次'],[1,'每週 1 次'],[2,'每週 2 次']].map(([n,l])=>`<button class="btn tiny ${(st.fancy??.5)===n?'on':''}" data-fancyn="${n}">${l}</button>`).join('')}</span></div>
       <div class="row"><span>每週自己煮幾餐（午晚餐）</span><span class="chips" style="align-items:center"><button class="btn tiny" id="mealsDn" aria-label="少一餐">−</button><b class="num" style="min-width:28px;text-align:center">${st.meals}</b><button class="btn tiny" id="mealsUp" aria-label="多一餐">＋</button></span></div>
       <div class="row"><span>早餐也自己做</span><button class="btn tiny ${st.breakfast?'on':''}" id="btnBf">${st.breakfast?'有':'沒有'}</button></div>
       ${num('maxNewSea','每週最多新買幾樣調味料',st.maxNewSea)}
@@ -1529,80 +1652,146 @@ let resetArmed=false;
 function render(){
   rebuild(S); ensurePlan();
   document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));
-  ['spin','shop','skill','set'].forEach(t=>$('#tab-'+t).hidden=t!==tab);
-  if(tab==='spin') renderSpin(); if(tab==='shop') renderShop(); if(tab==='skill') renderSkill(); if(tab==='set') renderSet();
+  ['spin','shop','fridge','skill','set'].forEach(t=>$('#tab-'+t).hidden=t!==tab);
+  if(tab==='spin') renderSpin(); if(tab==='shop') renderShop(); if(tab==='fridge') renderFridge(); if(tab==='skill') renderSkill(); if(tab==='set') renderSet();
   renderHeader();
 }
 
-// ---------- 這週結算：用「買了什麼」減掉「煮了什麼」，算出冰箱剩下的
-function weekLeftover(plan,cookedIds){
-  const sh=shopping(S,plan);
-  const anyChecked=sh.items.some(i=>S.checked[i.id]);
-  const need={};
-  const add=(rid,mult)=>{ for(const [k,q] of useOf(S,RX[rid])) need[k]=(need[k]||0)+q*mult; };
-  plan.sessions.forEach((s,si)=>{ for(const k of SLOTS) if(cookedIds.has(s[k])) add(s[k], slotServings(S,si,k,plan)/RX[s[k]].sv); });
-  (plan.fancy||[]).forEach(f=>{ if(cookedIds.has(f.id)) add(f.id,(S.settings.people||1)/RX[f.id].sv); });
-  if(plan.bf) plan.bf.forEach((rid,i)=>{ if(cookedIds.has(rid)) add(rid,bfServings(S,i)/RX[rid].sv); });
-  const out={};
-  const ids=new Set([...Object.keys(S.pantry||{}),...sh.items.map(i=>i.id)]);
-  for(const k of ids){
-    if(!ING[k]||!keeps(k)) continue;
-    const it=sh.items.find(i=>i.id===k);
-    const bought = it ? ((anyChecked? !!S.checked[k] : true) ? (S.bought?.[k] ?? it.packs) : 0) : 0;
-    const left=(S.pantry[k]||0)+bought-(need[k]||0);
-    if(left>=0.1) out[k]=+left.toFixed(2);
-  }
+// ---------- 這週的實際狀況：買了什麼、煮了什麼、吃了什麼 → 冰箱隨時更新
+const P=()=>S.settings.people||1;
+function planSlots(plan=S.plan){
+  const out=[], p=P(), n=si=>prepMeals(S)[si];
+  plan.sessions.forEach((s,si)=>SLOTS.forEach(k=>{
+    const role=SLOT_ROLE[k], sv=slotServings(S,si,k,plan);
+    const meals = role==='main' ? (p<3?(k==='main1'?Math.ceil(n(si)/2):Math.floor(n(si)/2)):n(si)*2/3) : role==='staple' ? Math.max(0,n(si)-fancyIn(plan,si)) : n(si);
+    out.push({key:si+'.'+k,id:s[k],role,si,servings:sv,meals});
+  }));
+  (plan.fancy||[]).forEach((f,i)=>out.push({key:'f.'+i,id:f.id,role:'fancy',si:f.si,servings:p,meals:1}));
+  (plan.bf||[]).forEach((id,i)=>out.push({key:'bf.'+i,id,role:'bf',si:0,servings:bfServings(S,i),meals:i===0?4:3}));
   return out;
 }
+const slotOf=id=>planSlots().find(x=>x.id===id);
+const needOf=(id,servings)=>{ const r=RX[id], o={}; if(!r) return o; for(const [k,q] of useOf(S,r)) o[k]=q*servings/r.sv; return o; };
+const cookedEv=id=>(S.cookEvents||[]).filter(e=>e.id===id);
+const isFresh=r=>r.cook==='fresh'||r.roles.includes('staple')||r.roles.includes('veg')||r.roles.includes('fancy')||r.roles.includes('bf');
+function mealsLeft(id){ const made=cookedEv(id).reduce((a,e)=>a+e.meals,0), ate=(S.eaten||{})[id]||0; return Math.max(0,+(made-ate).toFixed(2)); }
+function liveFridge(){
+  const f={...(S.pantry||{})};
+  const add=(k,v)=>{ if(ING[k]) f[k]=(f[k]||0)+v; };
+  for(const [k,x] of Object.entries(S.purchases||{})) add(k,x.qty);
+  for(const x of S.extras||[]) if(x.id) add(x.id,x.qty);
+  for(const e of [...(S.cookEvents||[]),...(S.consumed||[])]) for(const [k,q] of Object.entries(needOf(e.id,e.servings))) add(k,-q);
+  for(const [k,v] of Object.entries(S.adjust||{})) add(k,v);
+  for(const k of Object.keys(f)){ if(!(f[k]>0.05)) delete f[k]; else f[k]=+f[k].toFixed(2); }
+  return f;
+}
+function missingFor(id,servings,fridge){ const out=[]; for(const [k,q] of Object.entries(needOf(id,servings))){ if(GARNISH.has(k)) continue; if((fridge[k]||0)<q*0.6) out.push(k); } return out; }
+const blockedBy=id=>RX[id]?Object.keys(RX[id].use).filter(k=>!GARNISH.has(k)&&(S.unavail||[]).includes(k)):[];
+const lackGarnish=id=>RX[id]?Object.keys(RX[id].use).filter(k=>GARNISH.has(k)&&(S.unavail||[]).includes(k)):[];
+function fridgeBonus(plan,fridge){
+  let b=0; for(const id of planIds(plan)){ const r=RX[id]; const ess=Object.keys(r.use).filter(k=>!GARNISH.has(k)); if(!ess.length) continue;
+    b+=ess.filter(k=>(fridge[k]||0)>0.2).length/ess.length*25; }
+  return b;
+}
+function spendNow(){
+  if(S.receipt>0) return {total:Math.round(S.receipt),estimated:false,receipt:true};
+  const t=Object.values(S.purchases||{}).reduce((a,x)=>a+(+x.paid||0),0)+(S.extras||[]).reduce((a,x)=>a+(+x.paid||0),0);
+  if(!t) return {total:shopping(S,S.plan).cash,estimated:true};
+  return {total:Math.round(t),estimated:false};
+}
+// 建議可以換的菜：優先用冰箱裡有的、或用到指定的食材
+function suggest(role,{prefer=null,exclude=[],k=3,servings=null}={}){
+  const fridge=liveFridge(), inPlan=new Set(planIds(S.plan));
+  return ACTIVE.filter(r=>fitsRole(r,role)&&!inPlan.has(r.id)&&!exclude.includes(r.id)&&weight(S,r)>0&&!blockedBy(r.id).length&&(!prefer||r.use[prefer]))
+    .map(r=>{ const sv=servings||P()*2, miss=missingFor(r.id,sv,fridge), ess=Object.keys(r.use).filter(x=>!GARNISH.has(x)).length||1;
+      return {r, miss, has:Object.keys(r.use).filter(x=>!GARNISH.has(x)&&!miss.includes(x)), score:(1-miss.length/ess)*10+weight(S,r)+Math.random()*1.5}; })
+    .sort((a,b)=>b.score-a.score).slice(0,k);
+}
+function replaceKey(key,id){
+  const old = key.startsWith('f.') ? S.plan.fancy[+key.slice(2)].id : (()=>{ const [si,k]=key.split('.'); return S.plan.sessions[si][k]; })();
+  if(key.startsWith('f.')) S.plan.fancy[+key.slice(2)].id=id; else { const [si,k]=key.split('.'); S.plan.sessions[si][k]=id; }
+  S.skipped=(S.skipped||[]).filter(x=>x!==old);
+  return old;
+}
+function openSuggest({title,intro='',role=null,prefer=null,targetKey=null,exclude=[]}){
+  let cands;
+  if(role) cands=suggest(role,{prefer,exclude,k:3});
+  else cands=[...suggest('main',{prefer,k:3}),...suggest('side',{prefer,k:2}),...suggest('fancy',{prefer,k:1}),...suggest('veg',{prefer,k:1})].slice(0,5);
+  const slots=planSlots().filter(x=>x.role!=='bf'&&!cookedEv(x.id).length);
+  const btns=c=>{
+    const rr=role||(c.r.roles.includes('fancy')?'fancy':c.r.roles.includes('veg')?'veg':c.r.roles.includes('side')?'side':'main');
+    if(targetKey) return `<button class="btn tiny primary" data-rep="${targetKey}|${c.r.id}">換上去</button>`;
+    const same=slots.filter(x=>x.role===rr||(rr==='side'&&x.role==='soup'&&c.r.soup));
+    return same.length?same.map(x=>`<button class="btn tiny" data-rep="${x.key}|${c.r.id}">換掉「${esc(RX[x.id].n)}」</button>`).join(''):'<span class="small muted">這週沒有可以換的位置</span>';
+  };
+  $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sgt">
+    <div class="grab"></div>
+    <h2 id="sgt">${esc(title)}</h2>
+    ${intro?`<p class="small muted" style="margin:0">${intro}</p>`:''}
+    ${cands.length?cands.map(c=>`<div class="sugg">
+      <button class="dname" data-open="${c.r.id}">${esc(c.r.n)}</button>
+      <span class="small">${c.has.length?`冰箱有：${c.has.map(k=>esc(ING[k][0])).join('、')}`:''}${c.miss.length?`${c.has.length?' · ':''}<span style="color:var(--tomato)">還要買：${c.miss.map(k=>esc(ING[k][0])).join('、')}</span>`:' · 不用再買'}</span>
+      <div class="chips">${btns(c)}</div></div>`).join(''):'<p class="small muted">現在想不到合適的菜。可以到「抽菜」頁按「換一道」。</p>'}
+    <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">先不用</button><button class="btn" id="btnSugAgain">再想想</button></div></div>
+  </div></div>`;
+  window._lastSug={title,intro,role,prefer,targetKey,exclude:[...exclude,...cands.map(c=>c.r.id)]};
+  $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
+  $('#sclose').onclick=closeSheet;
+}
+function replanFromFridge(){
+  const locks={...S.plan.locks};
+  for(const x of planSlots()) if(cookedEv(x.id).length||((S.eaten||{})[x.id]||0)>0) locks[x.key]=true;
+  S._fridge=liveFridge(); S.pantryBackup=S.pantry; S.pantry=S._fridge;   // 用現在的冰箱算還要買什麼
+  const before=planIds(S.plan);
+  const p=generate(S,{...S.plan,locks});
+  S.pantry=S.pantryBackup; delete S.pantryBackup; delete S._fridge;
+  p.locks=S.plan.locks; S.plan=p;
+  const changed=planIds(p).filter(id=>!before.includes(id)).length;
+  S.skipped=(S.skipped||[]).filter(id=>planIds(p).includes(id));
+  save(); render(); toast(changed?`換了 ${changed} 道還沒煮的菜，優先用冰箱裡有的`:'現在的菜單已經是最好的安排');
+}
+
 function openWrapUp(){
-  const ids=[...new Set(planIds(S.plan))];
+  const ids=[...new Set([...planIds(S.plan),...(S.cookEvents||[]).map(e=>e.id)])].filter(id=>RX[id]);
   $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt">
     <div class="grab"></div>
     <h2 id="wt">這週結算</h2>
     <p class="small muted" style="margin:0">確定後會跳出這週的結算報告（花了多少錢、煮了什麼、哪些菜進步、冰箱剩什麼）。勾起來的是這週有煮的菜。已經按過「煮好了」的會先勾好；忘了登記的在這裡補勾，也會算進熟練度。沒煮的菜，食材會留在冰箱紀錄裡。</p>
-    <div>${ids.map(id=>`<label class="item"><input type="checkbox" id="wk-${id}" data-wk="${id}" ${S.weekLog.includes(id)?'checked':''}><span class="nm">${esc(RX[id].n)}</span><span></span></label>`).join('')}</div>
+    <div>${ids.map(id=>`<label class="item"><input type="checkbox" id="wk-${id}" data-wk="${id}" ${(cookedEv(id).length||(S.eaten||{})[id])?'checked':''}><span class="nm">${esc(RX[id].n)}</span><span></span></label>`).join('')}</div>
     <div class="sticky-cta"><div class="spinrow"><button class="btn" id="sclose">取消</button><button class="btn primary big" id="btnWrapOk">確定，開始下一週</button></div></div>
   </div></div>`;
   $('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeSheet(); });
   $('#sclose').onclick=closeSheet;
 }
 // ---------- 結算報告
-// 實際花費：有勾「買了」就照勾的和實際包數算；完全沒勾就用估計值
-function actualSpend(){
-  const sh=shopping(S,S.plan);
-  const any=sh.items.some(i=>S.checked[i.id]);
-  if(!any) return {total:sh.cash, estimated:true};
-  let t=0;
-  for(const it of sh.items) if(S.checked[it.id]) t+=(S.bought?.[it.id]??it.packs)*price(S,it.id);
-  t+=sh.fixed.reduce((a,f)=>a+f.cost,0);
-  t+=sh.newSea.filter(x=>S.checked['sea_'+x.id]).reduce((a,x)=>a+x.cost,0);
-  return {total:Math.round(t), estimated:false};
-}
 function finishWeek(){
   const ticked=new Set([...document.querySelectorAll('[data-wk]')].filter(x=>x.checked).map(x=>x.dataset.wk));
-  const spend=actualSpend();
-  // 這週每道菜煮了幾次：按過「煮好了」的照次數，結算時補勾的算 1 次
-  const times={};
-  for(const id of S.weekLog) times[id]=(times[id]||0)+1;
-  for(const id of ticked) if(!times[id]) times[id]=1;
-  for(const id of ticked) if(!S.weekLog.includes(id)){ const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())}; }
+  const spend=spendNow();
+  // 結算時補勾的：算煮了一次（現做的菜如果已經在第二輪按過「吃了」，材料已經扣過，不重複扣）
+  for(const id of ticked) if(!cookedEv(id).length){
+    const sl=slotOf(id), r=RX[id], ateFresh=isFresh(r)&&((S.eaten||{})[id]||0)>0;
+    S.cookEvents.push({id, servings: ateFresh?0:(sl?sl.servings:P()), meals: sl?sl.meals:1, date:iso(new Date())});
+    const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())};
+  }
+  const times={}; for(const e of S.cookEvents) times[e.id]=(times[e.id]||0)+1;
   const ups=[];
   for(const [id,n] of Object.entries(times)){
     if(!RX[id]) continue;
     const after=cooked(S,id), before=Math.max(0,after-n);
     if(stageOf(after)!==stageOf(before)) ups.push({id,n:RX[id].n,from:stageOf(before),to:stageOf(after)});
   }
-  S.pantry=weekLeftover(S.plan,ticked);
+  const fridge=liveFridge(); S.pantry={}; for(const [k,v] of Object.entries(fridge)) if(keeps(k)&&v>=0.1) S.pantry[k]=v;
   const end=iso(new Date());
-  const rec={start:S.weekStart||end, end, spent:spend.total, estimated:spend.estimated, budget:S.settings.budget, people:S.settings.people||1,
+  const rec={start:S.weekStart||end, end, spent:spend.total, estimated:spend.estimated, budget:S.settings.budget, people:P(),
     cooked:Object.entries(times).filter(([id])=>RX[id]).map(([id,n])=>({id,n:RX[id].n,times:n})),
-    ups, pantry:Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>({n:ING[k][0],v}))};
+    ups, pantry:Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>({n:ING[k][0],v})),
+    extras:(S.extras||[]).map(x=>({n:x.name,paid:x.paid}))};
   const prevMonth = S.history.length ? S.history[S.history.length-1].end.slice(0,7) : null;
   S.history=[...(S.history||[]),rec].slice(-104);
-  S.lastWeek=planIds(S.plan); S.weekLog=[]; S.seaWeek=[]; S.bought={};
-  S.plan=null; S.plan=generate(S,null); S.checked={}; S.today=null; S.weekStart=end;
+  S.lastWeek=planIds(S.plan);
+  Object.assign(S,{weekLog:[],seaWeek:[],purchases:{},extras:[],receipt:null,unavail:[],cookEvents:[],consumed:[],eaten:{},skipped:[],adjust:{},checked:{},today:null,weekStart:end,weekNo:(S.weekNo||0)+1});
+  S.plan=null; S.plan=generate(S,null);
   save(); closeSheet(); tab='spin'; mode='week'; render(); window.scrollTo(0,0);
-  // 這個月第一次結算：也給上個月的總結
   const newMonth = prevMonth && prevMonth!==end.slice(0,7);
   openReport(weekReportHTML(rec) + (newMonth?monthReportHTML(prevMonth):''), true);
 }
@@ -1617,9 +1806,10 @@ function weekReportHTML(rec){
       <div><b class="num">${totalTimes}</b><span>次下廚</span></div>
       <div><b class="num">${rec.ups.length}</b><span>道菜升級</span></div>
     </div>
-    <p class="small" style="margin:0">${over>0?`比預算 ${money(rec.budget)} 多了 <b style="color:var(--tomato)">${money(over)}</b>。`:`比預算 ${money(rec.budget)} 省了 <b style="color:var(--leaf)">${money(-over)}</b>。`}${rec.estimated?'這週沒有在購物清單打勾，所以用 App 估的價格算。':''}</p>
+    <p class="small" style="margin:0">${over>0?`比預算 ${money(rec.budget)} 多了 <b style="color:var(--tomato)">${money(over)}</b>。`:`比預算 ${money(rec.budget)} 省了 <b style="color:var(--leaf)">${money(-over)}</b>。`}${rec.estimated?'這週沒有記帳，所以用 App 估的價格算。':''}</p>
     ${rec.ups.length?`<div><h3>進步了</h3>${rec.ups.map(u=>`<div class="uprow"><span>${esc(u.n)}</span><span><span class="badge st${u.from}">${STAGES[u.from].n}</span> → <span class="badge st${u.to}">${STAGES[u.to].n}</span></span></div>`).join('')}</div>`:''}
     <div><h3>這週煮了</h3>${rec.cooked.length?`<div class="chips">${rec.cooked.map(c=>`<span class="chipbtn">${esc(c.n)}${c.times>1?` ×${c.times}`:''}</span>`).join('')}</div>`:'<p class="small muted" style="margin:4px 0 0">這週沒有登記煮菜。下週煮完記得按「煮好了」。</p>'}</div>
+    ${(rec.extras||[]).length?`<div><h3>另外買的</h3><p class="small" style="margin:4px 0 0">${rec.extras.map(x=>`${esc(x.n)} ${money(x.paid||0)}`).join('、')}</p></div>`:''}
     <div><h3>冰箱現在有</h3>${rec.pantry.length?`<p class="small" style="margin:4px 0 0">${rec.pantry.map(x=>`${esc(x.n)}（${x.v>=1?(+x.v.toFixed(1))+' 包':'一些'}）`).join('、')}</p>`:'<p class="small muted" style="margin:4px 0 0">沒有剩下要記的食材。</p>'}</div>
   </section>`;
 }
@@ -1675,10 +1865,13 @@ function openHelp(){
     <h2 id="ht">怎麼用開伙轉盤</h2>
     <ol class="steps">
       <li><b>抽這週的菜</b>：「抽菜」頁的第一輪，按「轉一下」。每次開伙會抽出一種主食、兩道主菜、一道配菜或湯、一道青菜；一週偶爾有一餐換成特色主食（粥、麵、炒飯）。不喜歡就按「換一道」，想對調就按「調換位置」，想保留就「鎖定」。</li>
+      <li><b>記帳</b>：採買頁勾「買了」，改成實際付的錢和包數；也可以直接填發票總額。買不到的按「買不到」，主要材料買不到時會幫你想替代的菜。</li>
+      <li><b>沒照著煮也沒關係</b>：菜下面按「這次不煮」，材料會留在冰箱，可以按「幫我換」。冰箱頁的「用冰箱的東西重新排」會只換還沒煮的菜。</li>
+      <li><b>我另外買的</b>：在冰箱頁記下清單外多買的東西和價格，會算進花費，也會建議可以做的菜。</li>
       <li><b>去買菜</b>：「採買」頁就是這週的購物清單，一週買一次。買了就勾起來。價格不對可以直接改，之後會照你改的價格算。新的調味料勾了以後就會記住，下週不再算錢。</li>
       <li><b>開伙</b>：點菜名看做法。每張卡片上方有「這次的挑戰」。展開「開伙順序」可以看先做哪道最省時間。</li>
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
-      <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，從這週煮好的菜裡抽今天這一餐，可以整餐重抽或只換一樣。</li>
+      <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，只會抽煮好、還有剩的菜。吃完按「吃了這餐」，冰箱和剩下的餐數會跟著更新。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
       <li><b>結算報告</b>：每週結算後會跳出報告：花了多少錢（照你勾的和實際買的包數算）、煮了什麼、哪些菜升級、冰箱剩什麼。每個月第一次結算會多一份上個月的總結。以前的報告在「熟練度」頁最下面。</li>
       <li><b>冰箱和櫃子</b>：在「採買」頁最下面，可以用 − / ＋ 調整數量，用完按「用完了」。促銷多買的：清單上有的，勾了以後按「＋」改成實際買的包數；清單上沒有的，用選單加進冰箱。</li>
@@ -1698,7 +1891,7 @@ function openRecipe(id){
   const r=RX[id]; if(!r) return;
   const c=cooked(S,id), ch=challengeFor(r,c+1), v=varsOf(r);
   const ing=useOf(S,r).map(([k,q])=>`<li>${esc(ING[k][0])}</li>`).join('');
-  const removed=removedFrom(S,r);
+  const removed=[...removedFrom(S,r),...lackGarnish(r.id)];
   const sea=r.sea.map(x=>`<span class="tag ${S.owned.includes(x)?'new':'buy'}">${SEA[x][0]}${S.owned.includes(x)?'':'（要買）'}</span>`).join(' ');
   const tool=r.cook==='pot'?'快煮鍋／電鍋':r.cook==='pan'?'平底鍋':r.cook==='cold'?'不用開火':'快煮鍋或平底鍋';
   $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="st">
@@ -1706,7 +1899,7 @@ function openRecipe(id){
     <div><h2 id="st" style="font-size:22px">${esc(r.n)}</h2>
       <div class="meta" style="margin-top:4px">${badge(c)}${pips(c,true)}<span>煮過 <span class="num">${c}</span> 次</span></div>
       <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${tool}</div></div>
-    ${removed.length?`<div class="tip"><b>已幫你拿掉：</b>${removed.map(k=>esc(ING[k][0])).join('、')}。步驟裡看到它就跳過。</div>`:''}
+    ${removed.length?`<div class="tip"><b>這次少了：</b>${removed.map(k=>esc(ING[k][0])).join('、')}（不吃或買不到）。步驟裡看到它就跳過，照樣煮。</div>`:''}
     <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
     <div><h3>食材（${r.sv} 份）</h3><ul class="ing">${ing}</ul></div>
     <div><h3>調味料</h3><div class="chips" style="margin-top:6px">${sea}</div></div>
@@ -1728,6 +1921,8 @@ function logCook(id){
   const r=RX[id], before=cooked(S,id), after=before+1;
   S.progress[id]={c:after,last:iso(new Date())};
   S.weekLog=[...(S.weekLog||[]),id];
+  const sl=slotOf(id); S.cookEvents=[...(S.cookEvents||[]),{id,servings:sl?sl.servings:P(),meals:sl?sl.meals:1,date:iso(new Date())}];
+  S.skipped=(S.skipped||[]).filter(x=>x!==id);
   save(); closeSheet(); render();
   const s0=stageOf(before), s1=stageOf(after);
   if(s1!==s0) celebrate(r,s0,s1,after);
@@ -1792,7 +1987,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.tab){ tab=t.dataset.tab; resetArmed=false; render(); window.scrollTo(0,0); return; }
   if(t.dataset.open){ openRecipe(t.dataset.open); return; }
   if(t.dataset.log){ logCook(t.dataset.log); return; }
-  if(t.dataset.undo){ const id=t.dataset.undo, c=cooked(S,id); if(c>0){ S.progress[id]={...S.progress[id],c:c-1}; const wi=(S.weekLog||[]).lastIndexOf(id); if(wi>=0) S.weekLog.splice(wi,1); save(); render(); toast(`「${RX[id].n}」少記一次`); } return; }
+  if(t.dataset.undo){ const id=t.dataset.undo, c=cooked(S,id); if(c>0){ S.progress[id]={...S.progress[id],c:c-1}; const wi=(S.weekLog||[]).lastIndexOf(id); if(wi>=0) S.weekLog.splice(wi,1); const ei=(S.cookEvents||[]).map(e=>e.id).lastIndexOf(id); if(ei>=0) S.cookEvents.splice(ei,1); save(); render(); toast(`「${RX[id].n}」少記一次`); } return; }
   if(t.dataset.lock){ const k=t.dataset.lock; S.plan.locks[k]=!S.plan.locks[k]; save(); renderMenuOnly(); return; }
   if(t.dataset.move){ moveSel = moveSel===t.dataset.move?null:t.dataset.move; renderMenuOnly(); if(moveSel) toast('再選一道同類的菜，兩道會交換位置'); return; }
   if(t.dataset.moveto){ const [a1,a2]=moveSel.split('.'), [b1,b2]=t.dataset.moveto.split('.'); const A=S.plan.sessions[a1], B=S.plan.sessions[b1]; [A[a2],B[b2]]=[B[b2],A[a2]]; moveSel=null; save(); renderMenuOnly(); toast('已調換'); return; }
@@ -1802,7 +1997,22 @@ document.addEventListener('click',e=>{
   if(t.dataset.swap){ const [si,role]=t.dataset.swap.split('|'); const id=rerollSlot(S,S.plan,+si,role); S.plan.sessions[si][role]=id; save(); renderMenuOnly(); slotMachine(si+'.'+role,RX[id].n); return; }
   if(t.dataset.dislike){ const k=t.dataset.dislike; S.dislikes=(S.dislikes||[]).includes(k)?S.dislikes.filter(x=>x!==k):[...(S.dislikes||[]),k]; save(); render(); return; }
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
-  if(t.dataset.bq){ e.preventDefault(); const [k,d]=t.dataset.bq.split('|'); const it=shopping(S,S.plan).items.find(i=>i.id===k); const cur=S.bought?.[k]??(it?it.packs:1); S.bought={...(S.bought||{}),[k]:Math.max(0,cur+ +d)}; save(); render(); return; }
+  if(t.dataset.bq){ const [k,d]=t.dataset.bq.split('|'); const x=S.purchases[k]; if(!x) return; const unit=x.qty?x.paid/x.qty:price(S,k); x.qty=Math.max(1,x.qty+ +d); x.paid=Math.round(unit*x.qty); save(); render(); return; }
+  if(t.dataset.unav){ const k=t.dataset.unav; const on=!(S.unavail||[]).includes(k); S.unavail=on?[...(S.unavail||[]),k]:S.unavail.filter(x=>x!==k); save(); render();
+    if(on&&!GARNISH.has(k)){ const hit=planSlots().find(x=>!cookedEv(x.id).length&&RX[x.id].use[k]); if(hit) openSuggest({title:`${ING[k][0]}買不到`,intro:`「${RX[hit.id].n}」需要它，做不了。這幾道只用已經買的或冰箱有的東西就能做：`,role:hit.role==='soup'?'soup':hit.role,targetKey:hit.key}); }
+    else if(on) toast(`${ING[k][0]}是配料，菜照煮就好`);
+    return; }
+  if(t.dataset.skip){ const id=t.dataset.skip; const on=!(S.skipped||[]).includes(id); S.skipped=on?[...(S.skipped||[]),id]:S.skipped.filter(x=>x!==id); save(); renderMenuOnly(); if(on) toast('材料會留在冰箱，可以按「幫我換」'); return; }
+  if(t.dataset.sug){ const key=t.dataset.sug; const x=planSlots().find(y=>y.key===key); if(!x) return; const r=RX[x.id]; const bl=blockedBy(x.id);
+    openSuggest({title:`換掉「${r.n}」`,intro:bl.length?`買不到${bl.map(k=>ING[k][0]).join('、')}。這幾道優先用冰箱有的東西：`:'這道這次不煮，材料會留著。這幾道優先用冰箱有的東西：',role:x.role,targetKey:key}); return; }
+  if(t.dataset.rep){ const [key,id]=t.dataset.rep.split('|'); const old=replaceKey(key,id); save(); closeSheet(); render(); toast(`「${RX[old]?.n||''}」換成「${RX[id].n}」`); return; }
+  if(t.dataset.sugid){ const id=t.dataset.sugid, r=RX[id]; const role=r.roles.includes('fancy')?'fancy':r.roles.includes('veg')?'veg':r.roles.includes('side')?(r.soup&&SLOTS.includes('soup')?'soup':'side'):'main';
+    const sl=planSlots().filter(x=>x.role===role&&!cookedEv(x.id).length);
+    $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><h2>把「${esc(r.n)}」換進來</h2><p class="small muted" style="margin:0">要換掉哪一道？</p><div class="chips">${sl.length?sl.map(x=>`<button class="btn" data-rep="${x.key}|${id}">${esc(RX[x.id].n)}</button>`).join(''):'<span class="small muted">這週沒有還沒煮的同類菜可以換</span>'}</div><div class="sticky-cta"><button class="btn" id="sclose">取消</button></div></div></div>`;
+    $('#sclose').onclick=closeSheet; return; }
+  if(t.dataset.adj){ const [k,d]=t.dataset.adj.split('|'); const cur=liveFridge()[k]||0; const delta=Math.max(-cur,+d); S.adjust={...(S.adjust||{}),[k]:+(((S.adjust||{})[k]||0)+delta).toFixed(2)}; save(); render(); return; }
+  if(t.dataset.empty){ const k=t.dataset.empty; const cur=liveFridge()[k]||0; S.adjust={...(S.adjust||{}),[k]:+(((S.adjust||{})[k]||0)-cur).toFixed(2)}; save(); render(); return; }
+  if(t.dataset.delx){ S.extras.splice(+t.dataset.delx,1); save(); render(); return; }
   if(t.dataset.pq){ const [k,d]=t.dataset.pq.split('|'); const v=+((S.pantry[k]||0)+ +d).toFixed(2); if(v<=0.05) delete S.pantry[k]; else S.pantry[k]=v; save(); render(); return; }
   if(t.dataset.week){ const w=S.history[+t.dataset.week]; if(w) openReport(weekReportHTML(w)); return; }
   if(t.dataset.month){ openReport(monthReportHTML(t.dataset.month)); return; }
@@ -1828,8 +2038,17 @@ document.addEventListener('click',e=>{
       save(); render(); toast(`改成 ${p} 人份，預算建議 ${BUDGET_HINT[p].toLocaleString('en-US')} 元，菜單重新抽好了`); return; }
     case 'mealsDn': S.settings.meals=Math.max(4,(S.settings.meals||8)-1); S.plan=generate(S,S.plan); save(); render(); return;
     case 'mealsUp': S.settings.meals=Math.min(14,(S.settings.meals||8)+1); S.plan=generate(S,S.plan); save(); render(); return;
-    case 'btnPantryAdd': { const v=$('#pantryAdd')?.value; if(v&&ING[v]){ S.pantry[v]=+((S.pantry[v]||0)+1).toFixed(2); save(); render(); toast('已加入：'+ING[v][0]); } return; }
-    case 'btnClearCheck': S.checked={}; save(); render(); return;
+    case 'btnAte': ateToday(); return;
+    case 'btnUndoAte': undoAte(); return;
+    case 'btnReplan': replanFromFridge(); return;
+    case 'btnSugAgain': if(window._lastSug) openSuggest(window._lastSug); return;
+    case 'btnExtra': {
+      const id=$('#exId').value, name=id?ING[id][0]:($('#exName').value||'').trim(), qty=Math.max(1,Math.round(+$('#exQty').value||1)), paid=Math.max(0,Math.round(+$('#exPaid').value||0));
+      if(!name){ toast('請選食材，或在「名稱」填你買了什麼'); return; }
+      S.extras=[...(S.extras||[]),{id:id||null,name,qty,paid}]; if(id&&paid) S.prices[id]=Math.round(paid/qty); save(); render();
+      if(id) openSuggest({title:`你買了${name}！`,intro:'這些菜會用到它，按一下就換進這週菜單：',prefer:id});
+      else toast(`記下來了：${name} ${money(paid)}`);
+      return; }
     case 'btnBackup': exportBackup(); return;
     case 'btnRestore': $('#restoreFile').click(); return;
     case 'btnReset': if(!resetArmed){ resetArmed=true; render(); return; } resetArmed=false; S=defaultState(); save(); render(); toast('已清除'); return;
@@ -1838,12 +2057,16 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='restoreFile'&&t.files&&t.files[0]){ importBackup(t.files[0]); t.value=''; return; }
-  if(t.dataset.check){
-    const key=t.dataset.check; S.checked[key]=t.checked;
+  if(t.dataset.buy){
+    const key=t.dataset.buy;
+    if(t.checked) S.purchases={...(S.purchases||{}),[key]:{qty:+t.dataset.q||1,paid:Math.round(+t.dataset.est||0)}};
+    else { const c={...S.purchases}; delete c[key]; S.purchases=c; }
     if(key.startsWith('sea_')){ const id=key.slice(4);
       if(t.checked){ if(!S.owned.includes(id)) S.owned.push(id); if(!S.seaWeek.includes(id)) S.seaWeek.push(id); }
       else { S.owned=S.owned.filter(x=>x!==id); S.seaWeek=S.seaWeek.filter(x=>x!==id); } }
     save(); render(); return; }
+  if(t.dataset.paid){ const k=t.dataset.paid, x=S.purchases[k]; if(!x) return; x.paid=Math.max(0,Math.round(+t.value||0)); if(ING[k]&&x.qty) S.prices[k]=Math.round(x.paid/x.qty); save(); render(); return; }
+  if(t.dataset.receipt){ const v=Math.round(+t.value||0); S.receipt=v>0?v:null; save(); render(); return; }
   if(t.dataset.price){ S.prices[t.dataset.price]=Math.max(0,Math.round(+t.value||0)); save(); render(); return; }
   if(t.dataset.set){ S.settings[t.dataset.set]=Math.max(0,+t.value||0); save(); render(); return; }
 });
@@ -1855,6 +2078,7 @@ new MutationObserver(redrawWheels).observe(document.documentElement,{attributes:
 
 // ---------- 啟動
 const local=loadLocal(); if(local) S=merge(local);
+if(S.settings.fancyV!==2){ S.settings.fancy=.5; S.settings.fancyV=2; }
 if(!S.weekStart){ S.weekStart=iso(new Date()); save(); }
 render();
 setSync(S.lastBackup?`紀錄存在這支手機。上次備份：${S.lastBackup}`:'紀錄存在這支手機，記得偶爾到「設定」備份');
