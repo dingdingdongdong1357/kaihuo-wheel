@@ -164,6 +164,7 @@ details.flow ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:col
 .price{display:flex;align-items:center;gap:1px;font-family:var(--f-num);font-weight:800}
 .price input{width:58px;text-align:right;border:1px solid transparent;background:transparent;border-radius:6px;padding:1px 4px;font:inherit;color:var(--ink)}
 .price input:focus,.price input:hover{border-color:var(--line);background:var(--bg)}
+.qty{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--ink);font-size:13px}
 .total{display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding-top:12px;border-top:2px solid var(--line);margin-top:8px}
 
 /* settings */
@@ -883,6 +884,7 @@ function defaultState(){
     lastWeek:[],
     unlocked:[], custom:[], customIng:{}, lastUpdate:null,
     pantry:{},
+    bought:{},    // 這週實際買了幾包（促銷多買時可以改）
     weekLog:[],   // 這週按過「煮好了」的菜
     seaWeek:[],   // 這週買的調味料
     today:null,
@@ -897,7 +899,11 @@ function userLevel(S){
   const ok = Object.values(S.progress).filter(p=>p.c>=3).length;
   return Math.min(3, 1 + Math.floor(ok/4));
 }
-const dislikedBy=(S,r)=>(S.dislikes||[]).some(k=>r.use[k]);
+// 配料不吃就從菜裡拿掉，菜照樣會抽到；主要食材不吃就整道菜排除
+const GARNISH=new Set(['scallion','garlic','ginger','chili','basil','celery']);
+const dislikedBy=(S,r)=>(S.dislikes||[]).some(k=>r.use[k]&&!GARNISH.has(k));
+const removedFrom=(S,r)=>(S.dislikes||[]).filter(k=>r.use[k]&&GARNISH.has(k));
+const useOf=(S,r)=>Object.entries(r.use).filter(([k])=>!((S.dislikes||[]).includes(k)&&GARNISH.has(k)));
 function weight(S,r){
   if (dislikedBy(S,r)) return 0;
   const lvl = userLevel(S);
@@ -927,7 +933,7 @@ function planIds(plan){
 // 一週買一次菜
 function shopping(S, plan){
   const need={}, users={};
-  const add=(rid,mult)=>{ const r=RX[rid]; for(const [k,q] of Object.entries(r.use)){ need[k]=(need[k]||0)+q*mult; (users[k]=users[k]||new Set()).add(r.n); } };
+  const add=(rid,mult)=>{ const r=RX[rid]; for(const [k,q] of useOf(S,r)){ need[k]=(need[k]||0)+q*mult; (users[k]=users[k]||new Set()).add(r.n); } };
   plan.sessions.forEach((s,si)=>{ for(const k of SLOTS) if(s[k]) add(s[k], slotServings(S,si,k)/RX[s[k]].sv); });
   if(plan.bf) plan.bf.forEach((rid,i)=>add(rid,bfServings(S,i)/RX[rid].sv));
   const pantry=S.pantry||{};
@@ -1042,7 +1048,7 @@ const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function pips(c,lg){ const f=Math.min(c,MASTER); return `<span class="pips ${c>=MASTER?'gold':''} ${lg?'lg':''}" aria-label="煮過 ${c} 次">${Array.from({length:MASTER},(_,i)=>`<i class="${i<f?'f':''}"></i>`).join('')}</span>`; }
 function badge(c){ const s=stageOf(c); return `<span class="badge st${s}">${STAGES[s].n}</span>`; }
 function toast(t){ const el=document.createElement('div'); el.className='toast'; el.textContent=t; $('#toastRoot').replaceChildren(el); setTimeout(()=>el.remove(),2400); }
-function dishCost(rid,serv){ const r=RX[rid]; let c=0; for(const [k,q] of Object.entries(r.use)) c+=q*serv/r.sv*price(S,k); return Math.round(c); }
+function dishCost(rid,serv){ const r=RX[rid]; let c=0; for(const [k,q] of useOf(S,r)) c+=q*serv/r.sv*price(S,k); return Math.round(c); }
 
 // ---------- 轉盤
 const wheel={rot:0, items:[], label:'按下面\n開始抽', cv:'#wheel', hub:'#hub'};
@@ -1299,7 +1305,8 @@ function renderShop(){
     const left=it.left>=0.15?(keeps(it.id)?' · 會剩一些，留到下週':' · 會剩一些，記得吃完'):'';
     return row(it.id,`${esc(nm)} <span class="muted small">${esc(pack)}${it.packs>1?' × '+it.packs:''}</span>`,
       `<span class="price">$<input type="number" min="0" step="1" id="price-${it.id}" data-price="${it.id}" value="${price(S,it.id)}" aria-label="${esc(nm)} 單價"></span>`,
-      `用在：${it.users.map(esc).join('、')}${it.have>0.05?' · 家裡還有一些':''}${left}`);
+      `用在：${it.users.map(esc).join('、')}${it.have>0.05?' · 家裡還有一些':''}${left}`
+      + (S.checked[it.id]?`<span class="qty">實際買了 <button class="btn tiny" data-bq="${it.id}|-1" aria-label="少一包">−</button><b class="num">${S.bought?.[it.id]??it.packs}</b> 包<button class="btn tiny" data-bq="${it.id}|1" aria-label="多一包">＋</button>${(S.bought?.[it.id]??it.packs)>it.packs?' <span class="tag sp">多的會記進冰箱</span>':''}</span>`:''));
   }).join('')}</div>`).join('');
   h+=`<div class="group"><h3>豆漿、水果、米（每週固定）</h3>${sh.fixed.map(f=>row(f.id,`${f.n}${f.qty>1?' × '+f.qty:''}`,`<span class="price">$${f.cost}</span>`,'')).join('')}</div>`;
   if(sh.newSea.length) h+=`<div class="group"><h3>調味料</h3>${sh.newSea.map(x=>row('sea_'+x.id,SEA[x.id][0],`<span class="price">$${x.cost}</span>`,'勾了就會記住你有，下週不再算錢')).join('')}</div>`;
@@ -1317,9 +1324,9 @@ function renderShop(){
     </section>
     <section class="card">
       <h2>冰箱和櫃子</h2>
-      <p class="small muted" style="margin:6px 0 10px">一週結束時，App 會用「你勾了買的」減掉「你登記煮的」，自動記下剩下的食材，下週抽菜會優先用掉。放不久的葉菜、豆腐不會記。</p>
-      ${Object.keys(S.pantry||{}).filter(k=>ING[k]).length?Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>`<div class="item"><span></span><span class="nm">${esc(ING[k][0])} <span class="muted small">約 ${v>=1?(+v.toFixed(1))+' 包':'剩一些'}</span></span><button class="btn tiny" data-unpantry="${k}">用完了</button></div>`).join(''):'<p class="small muted" style="margin:0">目前沒有紀錄。</p>'}
-      <div class="row" style="margin-top:10px"><select id="pantryAdd" aria-label="選一樣家裡已經有的食材" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('')}</select><button class="btn tiny" id="btnPantryAdd">家裡有這個</button></div>
+      <p class="small muted" style="margin:6px 0 10px">一週結束時，App 會用「你實際買的」減掉「你登記煮的」，自動記下剩下的食材，下週抽菜會優先用掉。放不久的葉菜、豆腐不會記。促銷多買的：清單上有的，勾了以後按「＋」改數量；清單上沒有的，用下面的選單加進來。</p>
+      ${Object.keys(S.pantry||{}).filter(k=>ING[k]).length?Object.entries(S.pantry).filter(([k])=>ING[k]).map(([k,v])=>`<div class="item"><span></span><span class="nm">${esc(ING[k][0])} <span class="muted small">約 ${v>=1?(+v.toFixed(1))+' 包':'剩一些'}（${esc(ING[k][1])}）</span></span><span class="chips"><button class="btn tiny" data-pq="${k}|-1" aria-label="少一包">−</button><button class="btn tiny" data-pq="${k}|1" aria-label="多一包">＋</button><button class="btn tiny" data-unpantry="${k}">用完了</button></span></div>`).join(''):'<p class="small muted" style="margin:0">目前沒有紀錄。</p>'}
+      <div class="row" style="margin-top:10px"><select id="pantryAdd" aria-label="選一樣促銷多買或家裡本來就有的食材" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${Object.entries(ING).map(([k,v])=>`<option value="${k}">${esc(v[0])}（${esc(v[1])}）</option>`).join('')}</select><button class="btn tiny" id="btnPantryAdd">加進冰箱</button></div>
     </section>`;
 }
 function titleFor(m){ return m>=10?['出社會也不怕',null]:m>=6?['宿舍料理王',10]:m>=3?['家常菜高手',6]:m>=1?['小廚師',3]:['廚房新生',1]; }
@@ -1400,7 +1407,7 @@ function renderSet(){
       <p class="small muted" style="margin:4px 0 0">豆漿、水果、米每週會自動算進預算（豆漿 ${st.soy} 瓶、水果約 ${st.fruit} 元、米約 ${st.rice} 元）。</p>
     </section>
     <section class="card"><h2>我不吃的食材</h2>
-      <p class="small muted" style="margin:4px 0 10px">點一下變紅色，抽菜時就不會出現用到它的菜。芋頭、南瓜、絲瓜、茄子本來就不在菜單裡。</p>
+      <p class="small muted" style="margin:4px 0 10px">點一下變紅色。蔥、蒜、薑、辣椒、九層塔、芹菜這些配料，會直接從菜裡拿掉；其他主要食材，用到它的整道菜都不會被抽到。芋頭、南瓜、絲瓜、茄子本來就不在菜單裡。</p>
       ${dislikeChips()}
     </section>
     <section class="card"><h2>我有的調味料</h2>
@@ -1431,7 +1438,7 @@ function weekLeftover(plan,cookedIds){
   const sh=shopping(S,plan);
   const anyChecked=sh.items.some(i=>S.checked[i.id]);
   const need={};
-  const add=(rid,mult)=>{ for(const [k,q] of Object.entries(RX[rid].use)) need[k]=(need[k]||0)+q*mult; };
+  const add=(rid,mult)=>{ for(const [k,q] of useOf(S,RX[rid])) need[k]=(need[k]||0)+q*mult; };
   plan.sessions.forEach((s,si)=>{ for(const k of SLOTS) if(cookedIds.has(s[k])) add(s[k], slotServings(S,si,k)/RX[s[k]].sv); });
   if(plan.bf) plan.bf.forEach((rid,i)=>{ if(cookedIds.has(rid)) add(rid,bfServings(S,i)/RX[rid].sv); });
   const out={};
@@ -1439,7 +1446,7 @@ function weekLeftover(plan,cookedIds){
   for(const k of ids){
     if(!ING[k]||!keeps(k)) continue;
     const it=sh.items.find(i=>i.id===k);
-    const bought = it ? ((anyChecked? !!S.checked[k] : true) ? it.packs : 0) : 0;
+    const bought = it ? ((anyChecked? !!S.checked[k] : true) ? (S.bought?.[k] ?? it.packs) : 0) : 0;
     const left=(S.pantry[k]||0)+bought-(need[k]||0);
     if(left>=0.1) out[k]=+left.toFixed(2);
   }
@@ -1462,7 +1469,7 @@ function finishWeek(){
   let ups=0;
   for(const id of ticked) if(!S.weekLog.includes(id)){ const b=cooked(S,id); S.progress[id]={c:b+1,last:iso(new Date())}; if(stageOf(b+1)!==stageOf(b)) ups++; }
   S.pantry=weekLeftover(S.plan,ticked);
-  S.lastWeek=planIds(S.plan); S.weekLog=[]; S.seaWeek=[];
+  S.lastWeek=planIds(S.plan); S.weekLog=[]; S.seaWeek=[]; S.bought={};
   S.plan=null; S.plan=generate(S,null); S.checked={}; S.today=null;
   save(); closeSheet(); tab='spin'; mode='week'; render(); window.scrollTo(0,0);
   toast(`新的一週！${ups?`有 ${ups} 道菜升級了。`:''}冰箱還有 ${Object.keys(S.pantry).length} 樣食材會優先用掉`);
@@ -1478,7 +1485,7 @@ function openHelp(){
       <li><b>登記</b>：煮完在做法頁按「煮好了！登記一次」，或在「熟練度」頁按綠色的「＋」。按錯了用「−」減回來。</li>
       <li><b>每天吃什麼</b>：「抽菜」頁的第二輪，從這週煮好的菜裡抽今天這一餐，可以整餐重抽或只換一樣。</li>
       <li><b>一週結束</b>：按「抽菜」頁最下面的「這週吃完了，開始下一週」，勾一下這週有煮哪些菜。App 會用「買了什麼」減掉「煮了什麼」，記下冰箱還剩什麼，下週抽菜會優先用掉。</li>
-      <li><b>冰箱和櫃子</b>：在「採買」頁最下面。用完的按「用完了」；本來就有的東西可以自己加進去。</li>
+      <li><b>冰箱和櫃子</b>：在「採買」頁最下面，可以用 − / ＋ 調整數量，用完按「用完了」。促銷多買的：清單上有的，勾了以後按「＋」改成實際買的包數；清單上沒有的，用選單加進冰箱。</li>
       <li><b>人數和不吃的東西</b>：「設定」可以選 1～5 人份，人多的時候每餐的菜會變多。也可以勾自己不吃的食材，抽菜就不會出現。</li>
       <li><b>每兩週加新菜</b>：「熟練度」頁最下面按「加入 3 道新菜」，舊的菜都會留著。</li>
       <li><b>備份</b>：紀錄存在這支手機。偶爾到「設定」按「下載備份檔」，換手機時用「還原」救回來。</li>
@@ -1494,7 +1501,8 @@ function openHelp(){
 function openRecipe(id){
   const r=RX[id]; if(!r) return;
   const c=cooked(S,id), ch=challengeFor(r,c+1), v=varsOf(r);
-  const ing=Object.entries(r.use).map(([k,q])=>`<li>${esc(ING[k][0])}</li>`).join('');
+  const ing=useOf(S,r).map(([k,q])=>`<li>${esc(ING[k][0])}</li>`).join('');
+  const removed=removedFrom(S,r);
   const sea=r.sea.map(x=>`<span class="tag ${S.owned.includes(x)?'new':'buy'}">${SEA[x][0]}${S.owned.includes(x)?'':'（要買）'}</span>`).join(' ');
   const tool=r.cook==='pot'?'快煮鍋／電鍋':r.cook==='pan'?'平底鍋':r.cook==='cold'?'不用開火':'快煮鍋或平底鍋';
   $('#sheetRoot').innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="st">
@@ -1502,6 +1510,7 @@ function openRecipe(id){
     <div><h2 id="st" style="font-size:22px">${esc(r.n)}</h2>
       <div class="meta" style="margin-top:4px">${badge(c)}${pips(c,true)}<span>煮過 <span class="num">${c}</span> 次</span></div>
       <div class="small muted" style="margin-top:4px">${'★'.repeat(r.lv)}${'☆'.repeat(3-r.lv)} · ${r.min} 分鐘 · ${tool}</div></div>
+    ${removed.length?`<div class="tip"><b>已幫你拿掉：</b>${removed.map(k=>esc(ING[k][0])).join('、')}。步驟裡看到它就跳過。</div>`:''}
     <div class="challenge"><div class="k">這次是${ch.k}</div><div>${esc(ch.t)}</div></div>
     <div><h3>食材（${r.sv} 份）</h3><ul class="ing">${ing}</ul></div>
     <div><h3>調味料</h3><div class="chips" style="margin-top:6px">${sea}</div></div>
@@ -1594,6 +1603,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.swap){ const [si,role]=t.dataset.swap.split('|'); const id=rerollSlot(S,S.plan,+si,role); S.plan.sessions[si][role]=id; save(); renderMenuOnly(); slotMachine(si+'.'+role,RX[id].n); return; }
   if(t.dataset.dislike){ const k=t.dataset.dislike; S.dislikes=(S.dislikes||[]).includes(k)?S.dislikes.filter(x=>x!==k):[...(S.dislikes||[]),k]; save(); render(); return; }
   if(t.dataset.own){ const id=t.dataset.own; S.owned=S.owned.includes(id)?S.owned.filter(x=>x!==id):[...S.owned,id]; save(); render(); return; }
+  if(t.dataset.bq){ e.preventDefault(); const [k,d]=t.dataset.bq.split('|'); const it=shopping(S,S.plan).items.find(i=>i.id===k); const cur=S.bought?.[k]??(it?it.packs:1); S.bought={...(S.bought||{}),[k]:Math.max(0,cur+ +d)}; save(); render(); return; }
+  if(t.dataset.pq){ const [k,d]=t.dataset.pq.split('|'); const v=+((S.pantry[k]||0)+ +d).toFixed(2); if(v<=0.05) delete S.pantry[k]; else S.pantry[k]=v; save(); render(); return; }
   if(t.dataset.unpantry){ delete S.pantry[t.dataset.unpantry]; save(); render(); return; }
   if(t.dataset.mode){ if(spinning||daySpinning) return; mode=t.dataset.mode; render(); return; }
   if(t.dataset.dayswap){ spinDay(t.dataset.dayswap); return; }
