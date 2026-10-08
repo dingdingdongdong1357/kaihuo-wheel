@@ -1171,7 +1171,7 @@ let S=defaultState(), dbRef=null, saveTimer=null, saving=Promise.resolve();
 // 資料的存放位置，永遠不要改（改了舊紀錄就讀不到）
 const LS_KEY='kaihuo-wheel-v2';
 // 每次改版把這個改掉：手機打開新版時，會先把舊資料自動備份一份
-const APP_VERSION='2026-10-05.19';
+const APP_VERSION='2026-10-08.1';
 const AUTO_LIST='kaihuo-auto-backups';
 function autoBackups(){ try{ return JSON.parse(localStorage.getItem(AUTO_LIST)||'[]'); }catch(e){ return []; } }
 function autoBackupIfUpgraded(raw,oldVer){
@@ -1194,7 +1194,23 @@ function save(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){ setSync('這個瀏覽器沒辦法存紀錄，請不要用無痕模式'); }
 }
 function iso(d){ const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
-function ensurePlan(){ if(!S.plan||!S.plan.sessions.every(s=>ROLES.every(r=>RX[s[r]]&&!dislikedBy(S,RX[s[r]])))||(S.plan.fancy||[]).length!==fancyCount(S)||(S.plan.fancy||[]).some(f=>!RX[f.id]||dislikedBy(S,RX[f.id]))){ S.plan=generate(S,S.plan&&S.plan.locks?{...S.plan,locks:{}}:null); S.checked={}; } }
+// 菜單缺格子或有不能吃的菜時，只補那一格，其他已經抽好的菜不動（改版也不會把整週菜單洗掉）
+function ensurePlan(){
+  if(!S.plan||!Array.isArray(S.plan.sessions)||S.plan.sessions.length!==2){ S.plan=generate(S,null); return; }
+  const ok=id=>id&&RX[id]&&!dislikedBy(S,RX[id]);
+  const used=new Set(planIds(S.plan).filter(ok));
+  let changed=false;
+  S.plan.locks=S.plan.locks||{};
+  S.plan.sessions.forEach(s=>{ for(const role of ROLES) if(!ok(s[role])){ const id=pick(S,role,used,Math.random); if(id){ s[role]=id; used.add(id); changed=true; } } });
+  let fz=(S.plan.fancy||[]).filter(f=>ok(f.id)); const want=fancyCount(S);
+  if(fz.length!==(S.plan.fancy||[]).length) changed=true;
+  while(fz.length>want){ fz.pop(); changed=true; }
+  while(fz.length<want){ const id=pick(S,'fancy',used,Math.random); if(!id) break; used.add(id); fz.push({si:fz.length?1-fz[0].si:(Math.random()<.5?0:1),id}); changed=true; }
+  S.plan.fancy=fz;
+  if(S.settings.breakfast&&!(S.plan.bf&&S.plan.bf.every(ok))){ const a=pick(S,'bf',used,Math.random); used.add(a); S.plan.bf=[a,pick(S,'bf',used,Math.random)]; changed=true; }
+  if(!S.settings.breakfast&&S.plan.bf){ S.plan.bf=null; changed=true; }
+  if(changed) save();
+}
 
 // ---------- 小工具
 const $=s=>document.querySelector(s);
